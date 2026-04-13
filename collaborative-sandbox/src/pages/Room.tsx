@@ -131,6 +131,13 @@ export default function Room() {
   // ── Scroll Sync ──
   const [scrollSyncEnabled, setScrollSyncEnabled] = useState(true);
 
+  // ── Student Interaction Mode ──
+  const [studentInteractionAllowed, setStudentInteractionAllowed] = useState(false);
+
+  // ── Attention Check ──
+  const [attentionAcks, setAttentionAcks] = useState<Array<{ studentName: string; timestamp: number }>>([]);
+  const [attentionCheckActive, setAttentionCheckActive] = useState(false);
+
   // ── Iframe readiness ──
   const iframeReadyRef = useRef(false);
   const pendingMessagesRef = useRef<any[]>([]);
@@ -201,6 +208,7 @@ export default function Room() {
       setActiveFileId(state.activeFileId);
       setIsPaused(state.isPaused);
       if (typeof state.scrollSyncEnabled === 'boolean') setScrollSyncEnabled(state.scrollSyncEnabled);
+      if (typeof state.studentInteractionAllowed === 'boolean') setStudentInteractionAllowed(state.studentInteractionAllowed);
       setUsers(state.users || []);
       setChatMessages(state.chat || []);
       if (state.activeFileId && state.files) {
@@ -235,7 +243,8 @@ export default function Room() {
         skipOwnPreviewRef.current = false;
         return;
       }
-      setPreviewHtml(html);
+      // Only rebuild iframe if HTML actually changed
+      setPreviewHtml(prev => prev === html ? prev : html);
     });
     newSocket.on("chat_message", (msg: ChatMessage) => {
       setChatMessages(prev => [...prev, msg]);
@@ -329,6 +338,17 @@ export default function Room() {
       setScrollSyncEnabled(enabled);
     });
 
+    // ── Student Interaction Mode ──
+    newSocket.on("student_interaction_changed", ({ allowed }: { allowed: boolean }) => {
+      setStudentInteractionAllowed(allowed);
+    });
+
+    // ── Attention Check Acks ──
+    newSocket.on("attention_ack", ({ studentName, timestamp }: { studentName: string; timestamp: number }) => {
+      setAttentionAcks(prev => [...prev, { studentName, timestamp }]);
+      showNotif(`${studentName} is here`);
+    });
+
     // ── Step-Lock events ──
     newSocket.on("gate_answered", ({ studentName, step, correct }: { studentName: string; step: number; correct: boolean }) => {
       showNotif(`${correct ? '✅' : '❌'} ${studentName} ${correct ? 'passed' : 'failed'} gate on Step ${step}`);
@@ -343,7 +363,10 @@ export default function Room() {
     if (iframeReadyRef.current && iframeRef.current?.contentWindow) {
       iframeRef.current.contentWindow.postMessage(msg, '*');
     } else {
-      pendingMessagesRef.current.push(msg);
+      // Cap pending queue to prevent memory leak
+      if (pendingMessagesRef.current.length < 500) {
+        pendingMessagesRef.current.push(msg);
+      }
     }
   }, []);
 
@@ -393,16 +416,10 @@ export default function Room() {
     return () => window.removeEventListener("message", handler);
   }, [socket, roomId, scrollSyncEnabled]);
 
-  // ── Periodic auto-sync: every 10s, push teacher's live DOM to students ──
-  useEffect(() => {
-    if (!socket || !roomId) return;
-    const interval = setInterval(() => {
-      if (iframeRef.current?.contentWindow && iframeReadyRef.current) {
-        iframeRef.current.contentWindow.postMessage({ type: 'REQUEST_HTML' }, '*');
-      }
-    }, 10000);
-    return () => clearInterval(interval);
-  }, [socket, roomId]);
+  // NOTE: Periodic auto-sync removed — it was causing full iframe reloads on student
+  // side every 10s, making the page blink and scroll jump to top.
+  // Interactions are already synced in real-time via SYNC_* events.
+  // Full HTML sync only happens on: file switch, file upload, manual Force Sync.
 
   // ── Build iframe URL ──
   useEffect(() => {
@@ -470,12 +487,18 @@ export default function Room() {
   }, []);
 
   // ── Helpers ──
-  const showNotif = (msg: string) => { setNotification(msg); setTimeout(() => setNotification(""), 3000); };
+  const notifTimeoutRef = useRef<ReturnType<typeof setTimeout>>();
+  const showNotif = (msg: string) => {
+    if (notifTimeoutRef.current) clearTimeout(notifTimeoutRef.current);
+    setNotification(msg);
+    notifTimeoutRef.current = setTimeout(() => setNotification(""), 3000);
+  };
 
   const uploadFileFromInput = (e: React.ChangeEvent<HTMLInputElement>) => {
     const uploadedFiles = e.target.files;
     if (!uploadedFiles || !socket) return;
     Array.from(uploadedFiles).forEach((file: File) => {
+      if (file.size > 2 * 1024 * 1024) { showNotif(`⚠️ ${file.name} is too large (max 2MB)`); return; }
       const reader = new FileReader();
       reader.onload = (ev) => {
         const content = ev.target?.result as string;
@@ -490,6 +513,7 @@ export default function Room() {
         setPreviewHtml(content);
         showNotif(`✅ Uploaded: ${entry.name}`);
       };
+      reader.onerror = () => showNotif(`⚠️ Failed to read ${file.name}`);
       reader.readAsText(file);
     });
     e.target.value = '';
@@ -502,6 +526,7 @@ export default function Room() {
     const droppedFiles = (Array.from(e.dataTransfer.files) as File[]).filter(f => /\.html?$/i.test(f.name));
     if (droppedFiles.length === 0) { showNotif("⚠️ Only .html files please"); return; }
     droppedFiles.forEach((file: File) => {
+      if (file.size > 2 * 1024 * 1024) { showNotif(`⚠️ ${file.name} is too large (max 2MB)`); return; }
       const reader = new FileReader();
       reader.onload = (ev) => {
         const content = ev.target?.result as string;
@@ -516,6 +541,7 @@ export default function Room() {
         setPreviewHtml(content);
         showNotif(`✅ Uploaded: ${entry.name}`);
       };
+      reader.onerror = () => showNotif(`⚠️ Failed to read ${file.name}`);
       reader.readAsText(file);
     });
   };
@@ -591,11 +617,13 @@ export default function Room() {
 
   const handleForceSync = () => {
     if (!socket) return;
+    // Capture teacher's current live DOM and save it server-side for new students,
+    // then emit force_sync so students get the latest state.
+    // The REQUEST_HTML → SYNC_PROVIDE_HTML → sync_html_update flow stores it.
     postToIframe({ type: 'REQUEST_HTML' });
     setTimeout(() => {
       socket.emit("force_sync", { roomId });
       setLastSyncTime(Date.now());
-      showNotif("🔄 Force Synced — all students updated");
     }, 300);
   };
 
@@ -606,6 +634,31 @@ export default function Room() {
     socket.emit("toggle_scroll_sync", { roomId, enabled: newEnabled });
     postToIframe({ type: 'SET_SCROLL_SYNC', enabled: newEnabled });
     showNotif(newEnabled ? '🔗 Scroll sync ON' : '🔓 Free scroll — everyone scrolls independently');
+  };
+
+  const toggleStudentInteraction = () => {
+    if (!socket) return;
+    const newAllowed = !studentInteractionAllowed;
+    setStudentInteractionAllowed(newAllowed);
+    socket.emit("toggle_student_interaction", { roomId, allowed: newAllowed });
+    showNotif(newAllowed ? '🖐️ Students can now interact with the simulation' : '👁️ Students are now view-only');
+  };
+
+  const resetView = () => {
+    if (!socket) return;
+    socket.emit("reset_view", { roomId });
+    postToIframe({ type: 'RESET_VIEW' });
+    showNotif('⬆️ Reset view — scrolled everyone to top');
+  };
+
+  const sendAttentionCheck = () => {
+    if (!socket) return;
+    setAttentionAcks([]);
+    setAttentionCheckActive(true);
+    socket.emit("attention_check", { roomId });
+    showNotif('📢 Attention check sent — waiting for responses');
+    // Auto-dismiss after 30s
+    setTimeout(() => setAttentionCheckActive(false), 30000);
   };
 
   const togglePause = () => {
@@ -880,6 +933,18 @@ export default function Room() {
             <span className="hidden md:inline">{isRecording ? 'Stop' : 'Rec'}</span>
           </button>
 
+          {/* Fullscreen toggle */}
+          <button onClick={() => {
+            if (document.fullscreenElement) document.exitFullscreen();
+            else document.documentElement.requestFullscreen().catch(() => {});
+          }}
+            className="btn text-[12px]" title="Toggle fullscreen"
+            style={{ display: 'inline-flex', alignItems: 'center' }}>
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <polyline points="15 3 21 3 21 9"/><polyline points="9 21 3 21 3 15"/><line x1="21" y1="3" x2="14" y2="10"/><line x1="3" y1="21" x2="10" y2="14"/>
+            </svg>
+          </button>
+
           {/* Sound toggle */}
           <button onClick={() => { const m = sounds.toggleMute(); setSoundMuted(m); }}
             className="btn text-[12px]" title={soundMuted ? 'Unmute' : 'Mute'}
@@ -1036,6 +1101,10 @@ export default function Room() {
               onSendReaction={sendReaction}
               scrollSyncEnabled={scrollSyncEnabled}
               onToggleScrollSync={toggleScrollSync}
+              studentInteractionAllowed={studentInteractionAllowed}
+              onToggleStudentInteraction={toggleStudentInteraction}
+              onResetView={resetView}
+              onAttentionCheck={sendAttentionCheck}
             />
 
             {/* Step Controls */}
