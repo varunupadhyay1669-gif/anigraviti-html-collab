@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useRef, useCallback } from "react";
+import React, { useEffect, useState, useRef, useCallback, useMemo } from "react";
 import { useParams, useNavigate, useSearchParams } from "react-router-dom";
 import { io, Socket } from "socket.io-client";
 import { injectedSyncScript } from "../lib/syncScript";
@@ -21,6 +21,8 @@ import AttentionIndicator from "../components/AttentionIndicator";
 import UserList from "../components/UserList";
 import SimulationLibrary from "../components/SimulationLibrary";
 import ConnectionStatus from "../components/ConnectionStatus";
+import Leaderboard from "../components/Leaderboard";
+import Whiteboard from "../components/Whiteboard";
 
 // ── Types ──
 interface FileEntry {
@@ -131,6 +133,45 @@ export default function Room() {
   // ── Scroll Sync ──
   const [scrollSyncEnabled, setScrollSyncEnabled] = useState(true);
 
+  // ── Temporary Explanation Content ──
+  const [tempContent, setTempContent] = useState<{ html: string; name: string } | null>(null);
+  const [showTempContent, setShowTempContent] = useState(false);
+  const tempFileInputRef = useRef<HTMLInputElement>(null);
+
+  // Memoize blob URL to prevent iframe from reloading on every render
+  const tempContentUrl = useMemo(() => {
+    if (!tempContent) return null;
+    const scripts = injectedSyncScript + stepLockScript;
+    let content = tempContent.html;
+    if (content.includes("<head>")) {
+      content = content.replace("<head>", "<head>" + scripts);
+    } else {
+      content = scripts + content;
+    }
+    const blob = new Blob([content], { type: 'text/html' });
+    return URL.createObjectURL(blob);
+  }, [tempContent?.html, tempContent?.name]);
+
+  useEffect(() => {
+    return () => {
+      if (tempContentUrl) URL.revokeObjectURL(tempContentUrl);
+    };
+  }, [tempContentUrl]);
+
+  // ── Zoom Sync ──
+  const [zoomLevel, setZoomLevel] = useState(1);
+
+  // ── Gamification ──
+  const [leaderboard, setLeaderboard] = useState<Array<{ studentName: string; xp: number; streak: number }>>([]);
+  const [showLeaderboard, setShowLeaderboard] = useState(false);
+
+  // ── Whiteboard ──
+  const [whiteboardMode, setWhiteboardMode] = useState(false);
+  const [whiteboardScrollX, setWhiteboardScrollX] = useState(0);
+  const [whiteboardScrollY, setWhiteboardScrollY] = useState(0);
+  const [whiteboardState, setWhiteboardState] = useState<any>(null);
+  const whiteboardRef = useRef<import('../components/Whiteboard').WhiteboardRef>(null);
+
   // ── Student Interaction Mode ──
   const [studentInteractionAllowed, setStudentInteractionAllowed] = useState(false);
 
@@ -138,9 +179,21 @@ export default function Room() {
   const [attentionAcks, setAttentionAcks] = useState<Array<{ studentName: string; timestamp: number }>>([]);
   const [attentionCheckActive, setAttentionCheckActive] = useState(false);
 
+  // ── Follow Clicks ──
+  const [followStudentClicks, setFollowStudentClicks] = useState(false);
+  const [studentClickIndicators, setStudentClickIndicators] = useState<Array<{ id: number; x: number; y: number; name: string; color: string }>>([]);
+
   // ── Iframe readiness ──
   const iframeReadyRef = useRef(false);
   const pendingMessagesRef = useRef<any[]>([]);
+
+  // ── Dual View (split: teacher | student mirror) ──
+  const [dualView, setDualView] = useState(false);
+  const dualViewRef = useRef(false);
+  useEffect(() => { dualViewRef.current = dualView; }, [dualView]);
+  const mirrorIframeRef = useRef<HTMLIFrameElement>(null);
+  const mirrorReadyRef = useRef(false);
+  const pendingMirrorMessagesRef = useRef<any[]>([]);
 
   // ── Step-Lock ──
   const [stepLockEnabled, setStepLockEnabled] = useState(false);
@@ -170,6 +223,37 @@ export default function Room() {
 
   // ── Flag to skip our own run_preview echo ──
   const skipOwnPreviewRef = useRef(false);
+  const syncEpochRef = useRef(0);
+  const lastInboundSeqRef = useRef(0);
+  const snapshotTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const snapshotRequestRef = useRef<string | null>(null);
+  const lastRevisionRef = useRef(0);
+
+  const applySessionState = useCallback((state: any) => {
+    if (typeof state.revision === 'number') {
+      if (state.revision < lastRevisionRef.current) return;
+      lastRevisionRef.current = state.revision;
+    }
+    if (state.files) setFiles(state.files);
+    if (state.activeFileId !== undefined) setActiveFileId(state.activeFileId);
+    if (typeof state.isPaused === 'boolean') setIsPaused(state.isPaused);
+    if (typeof state.scrollSyncEnabled === 'boolean') setScrollSyncEnabled(state.scrollSyncEnabled);
+    if (typeof state.studentInteractionAllowed === 'boolean') setStudentInteractionAllowed(state.studentInteractionAllowed);
+    if (typeof state.currentStep === 'number') setCurrentStep(state.currentStep);
+    if (typeof state.zoomLevel === 'number') setZoomLevel(state.zoomLevel);
+    if (state.gates) setGates(state.gates);
+    if (state.tempContent) {
+      setTempContent(state.tempContent);
+      setShowTempContent(true);
+    }
+    if (state.whiteboard) setWhiteboardState(state.whiteboard);
+    const html = state.effectiveHtml || state.liveSnapshotHtml || state.lastRunHtml || state.sourceHtml;
+    if (html) {
+      setHtmlCode(state.sourceHtml || html);
+      setPreviewHtml((prev: string) => prev === html ? prev : html);
+    }
+    setLastSyncTime(Date.now());
+  }, []);
 
   // ── Refs ──
   const iframeRef = useRef<HTMLIFrameElement>(null);
@@ -204,6 +288,7 @@ export default function Room() {
     newSocket.on("disconnect", () => setConnected(false));
 
     newSocket.on("room_state", (state: any) => {
+      applySessionState(state);
       setFiles(state.files || []);
       setActiveFileId(state.activeFileId);
       setIsPaused(state.isPaused);
@@ -211,11 +296,18 @@ export default function Room() {
       if (typeof state.studentInteractionAllowed === 'boolean') setStudentInteractionAllowed(state.studentInteractionAllowed);
       setUsers(state.users || []);
       setChatMessages(state.chat || []);
+      if (typeof state.revision === 'number') lastRevisionRef.current = state.revision;
       if (state.activeFileId && state.files) {
         const f = state.files.find((f: FileEntry) => f.id === state.activeFileId);
-        if (f) { setHtmlCode(f.html); setPreviewHtml(f.html); }
+        if (state.lastRunHtml) {
+          setHtmlCode(state.lastRunHtml);
+          setPreviewHtml(state.lastRunHtml);
+        } else if (f) { setHtmlCode(f.html); setPreviewHtml(f.html); }
       }
     });
+
+    newSocket.on("session_state", applySessionState);
+    newSocket.on("sync_full_state", applySessionState);
 
     newSocket.on("user_list", (list: UserInfo[]) => setUsers(list));
     newSocket.on("user_left", (data: { userId: string; userName: string }) => {
@@ -227,6 +319,9 @@ export default function Room() {
       setFiles(prev => [...prev, file]);
       sounds.tick();
     });
+    newSocket.on("upload_error", ({ message }: { message: string }) => {
+      showNotif(`⚠️ Upload failed: ${message}`);
+    });
     newSocket.on("file_updated", ({ fileId, html }: { fileId: string; html: string }) => {
       setFiles(prev => prev.map(f => f.id === fileId ? { ...f, html } : f));
     });
@@ -237,7 +332,11 @@ export default function Room() {
     newSocket.on("active_file_changed", (data: { fileId: string; fileName?: string; html?: string }) => {
       setActiveFileId(data.fileId);
     });
-    newSocket.on("run_preview", ({ html }: { fileId: string; html: string }) => {
+    newSocket.on("run_preview", ({ html, revision }: { fileId: string; html: string; revision?: number }) => {
+      if (typeof revision === 'number') {
+        if (revision < lastRevisionRef.current) return;
+        lastRevisionRef.current = revision;
+      }
       // Skip if this is our own echo from run_preview we just emitted
       if (skipOwnPreviewRef.current) {
         skipOwnPreviewRef.current = false;
@@ -267,7 +366,26 @@ export default function Room() {
       setReactions(prev => [...prev, { id, emoji }]);
       setTimeout(() => setReactions(prev => prev.filter(r => r.id !== id)), 2500);
     });
+
+    // ── Temporary Explanation Content ──
+    newSocket.on("temp_content", ({ html, name }: { html: string; name: string }) => {
+      setTempContent({ html, name });
+      setShowTempContent(true);
+      showNotif(`📚 Showing explanation: ${name}`);
+    });
+    newSocket.on("clear_temp_content", () => {
+      setShowTempContent(false);
+      showNotif('↩️ Back to main content');
+    });
+
     newSocket.on("interaction", (event: any) => {
+      if (typeof event.serverSeq === 'number') {
+        if (event.serverSeq <= lastInboundSeqRef.current) return;
+        lastInboundSeqRef.current = event.serverSeq;
+      }
+      if (typeof event.syncEpoch === 'number' && event.syncEpoch < syncEpochRef.current) {
+        return;
+      }
       if (event.type === "SYNC_CURSOR") {
         setCursors(prev => ({
           ...prev,
@@ -277,9 +395,51 @@ export default function Room() {
             name: event.userName || 'Student',
           },
         }));
+      } else if (event.type === "SYNC_CLICK") {
+        // Show click indicator for student clicks
+        if (event.role === 'student') {
+          const id = Date.now() + Math.random();
+          const color = CURSOR_COLORS[event.userId.charCodeAt(0) % CURSOR_COLORS.length];
+          setStudentClickIndicators(prev => [...prev, {
+            id,
+            x: event.clientX,
+            y: event.clientY,
+            name: event.userName || 'Student',
+            color
+          }]);
+          setTimeout(() => {
+            setStudentClickIndicators(prev => prev.filter(i => i.id !== id));
+          }, 2000);
+
+          // Auto-scroll to student click if following is enabled
+          if (followStudentClicks && iframeRef.current) {
+            const iframe = iframeRef.current;
+            iframe.contentWindow?.postMessage({
+              type: 'FOLLOW_CLICK',
+              x: event.clientX,
+              y: event.clientY
+            }, '*');
+          }
+        }
+        const remoteEvent = { ...event, type: event.type.replace("SYNC_", "REMOTE_") };
+        postToIframe(remoteEvent);
+        if (dualViewRef.current && mirrorIframeRef.current?.contentWindow) {
+          if (mirrorReadyRef.current) {
+            mirrorIframeRef.current.contentWindow.postMessage(remoteEvent, '*');
+          } else if (pendingMirrorMessagesRef.current.length < 500) {
+            pendingMirrorMessagesRef.current.push(remoteEvent);
+          }
+        }
       } else {
         const remoteEvent = { ...event, type: event.type.replace("SYNC_", "REMOTE_") };
         postToIframe(remoteEvent);
+        if (dualViewRef.current && mirrorIframeRef.current?.contentWindow) {
+          if (mirrorReadyRef.current) {
+            mirrorIframeRef.current.contentWindow.postMessage(remoteEvent, '*');
+          } else if (pendingMirrorMessagesRef.current.length < 500) {
+            pendingMirrorMessagesRef.current.push(remoteEvent);
+          }
+        }
       }
       if (isRecording) sessionRecorder.record('interaction', event);
     });
@@ -311,12 +471,14 @@ export default function Room() {
     });
 
     // ── Sync ──
-    newSocket.on("request_html_sync", () => {
-      if (iframeRef.current?.contentWindow) {
-        iframeRef.current.contentWindow.postMessage({ type: 'REQUEST_HTML' }, "*");
-      }
+    newSocket.on("request_html_sync", ({ requestId }: { requestId?: string } = {}) => {
+      postToIframe({ type: 'REQUEST_HTML', requestId: requestId || `teacher-${Date.now()}` });
     });
     newSocket.on("force_sync_state", (state: any) => {
+      if (typeof state.revision === 'number') {
+        if (state.revision < lastRevisionRef.current) return;
+        lastRevisionRef.current = state.revision;
+      }
       if (state.activeFileId && state.lastRunHtml) {
         setPreviewHtml(state.lastRunHtml);
         setActiveFileId(state.activeFileId);
@@ -355,8 +517,54 @@ export default function Room() {
       if (correct) sounds.success();
     });
 
+    // ── Gamification ──
+    newSocket.on("leaderboard_update", (lb: Array<{ studentName: string; xp: number; streak: number }>) => {
+      setLeaderboard(lb);
+    });
+
+    // ── Room Hard Reset (files are PRESERVED — only progress/session state is cleared) ──
+    newSocket.on("room_reset", (payload?: { activeFileId?: string | null; files?: FileEntry[]; lastRunHtml?: string | null }) => {
+      // Clear session progress/state
+      setChatMessages([]);
+      setCursors({});
+      setCurrentStep(1);
+      setMaxStep(0);
+      setGates({});
+      setStepLockEnabled(false);
+      setZoomLevel(1);
+      setLeaderboard([]);
+      setQuizAnswers([]);
+      setHandRaised(null);
+      setStudentFeedback([]);
+      setAttention({});
+      setAttentionAcks([]);
+      // Keep uploaded files — sync from server's authoritative state if provided
+      if (payload?.files) setFiles(payload.files);
+      if (payload?.activeFileId !== undefined) setActiveFileId(payload.activeFileId);
+      // Reload the active file into preview so it starts fresh from the top
+      if (payload?.activeFileId && payload.files) {
+        const active = payload.files.find(f => f.id === payload.activeFileId);
+        if (active) {
+          setHtmlCode(active.html);
+          setPreviewHtml(active.html);
+        }
+      }
+      showNotif("🔄 Session reset — starting from the beginning");
+    });
+
     return () => { newSocket.disconnect(); };
   }, [roomId, navigate, teacherName]);
+
+  // ── Helper: safely post message to mirror iframe (queues if not ready) ──
+  const postToMirror = useCallback((msg: any) => {
+    if (mirrorReadyRef.current && mirrorIframeRef.current?.contentWindow) {
+      mirrorIframeRef.current.contentWindow.postMessage(msg, '*');
+    } else {
+      if (pendingMirrorMessagesRef.current.length < 500) {
+        pendingMirrorMessagesRef.current.push(msg);
+      }
+    }
+  }, []);
 
   // ── Helper: safely post message to iframe (queues if not ready) ──
   const postToIframe = useCallback((msg: any) => {
@@ -380,24 +588,84 @@ export default function Room() {
       iframeRef.current?.contentWindow?.postMessage(msg, '*');
     }
     // Re-send current state
+    iframeRef.current?.contentWindow?.postMessage({ type: 'SET_PRESENTER_MODE', enabled: true }, '*');
     if (scrollSyncEnabled !== undefined) {
       iframeRef.current?.contentWindow?.postMessage({ type: 'SET_SCROLL_SYNC', enabled: scrollSyncEnabled }, '*');
     }
     if (stepLockEnabled && currentStep) {
       iframeRef.current?.contentWindow?.postMessage({ type: 'SET_STEP', step: currentStep }, '*');
     }
-  }, [scrollSyncEnabled, stepLockEnabled, currentStep]);
+    if (zoomLevel !== 1) {
+      iframeRef.current?.contentWindow?.postMessage({ type: 'SET_ZOOM', zoom: zoomLevel }, '*');
+    }
+  }, [scrollSyncEnabled, stepLockEnabled, currentStep, zoomLevel]);
+
+  // ── Mirror iframe onLoad: behave like a passive student view ──
+  const handleMirrorLoad = useCallback(() => {
+    mirrorReadyRef.current = true;
+    const pending = pendingMirrorMessagesRef.current;
+    pendingMirrorMessagesRef.current = [];
+    for (const msg of pending) {
+      mirrorIframeRef.current?.contentWindow?.postMessage(msg, '*');
+    }
+    // Mirror is view-only and receives remote events only
+    mirrorIframeRef.current?.contentWindow?.postMessage({ type: 'SET_PRESENTER_MODE', enabled: false }, '*');
+    mirrorIframeRef.current?.contentWindow?.postMessage({ type: 'SET_INTERACTION_MODE', allowed: false }, '*');
+    mirrorIframeRef.current?.contentWindow?.postMessage({ type: 'SET_SCROLL_SYNC', enabled: true }, '*');
+    if (stepLockEnabled && currentStep) {
+      mirrorIframeRef.current?.contentWindow?.postMessage({ type: 'SET_STEP', step: currentStep }, '*');
+    }
+    if (zoomLevel !== 1) {
+      mirrorIframeRef.current?.contentWindow?.postMessage({ type: 'REMOTE_ZOOM', zoom: zoomLevel }, '*');
+    }
+    // Catch up to teacher's current scroll position immediately
+    setTimeout(() => {
+      iframeRef.current?.contentWindow?.postMessage({ type: 'EMIT_CURRENT_SCROLL' }, '*');
+    }, 250);
+  }, [stepLockEnabled, currentStep, zoomLevel]);
+
+  // ── Dual View: keep mirror aligned with teacher scroll ──
+  useEffect(() => {
+    if (!dualView) return;
+    // Initial pulse shortly after toggle (server too, so any other students align)
+    const initial = setTimeout(() => {
+      iframeRef.current?.contentWindow?.postMessage({ type: 'EMIT_CURRENT_SCROLL' }, '*');
+    }, 200);
+    // Periodic convergence pulse — mirror only, no server traffic
+    const interval = setInterval(() => {
+      iframeRef.current?.contentWindow?.postMessage({ type: 'EMIT_CURRENT_SCROLL', mirrorOnly: true }, '*');
+    }, 1500);
+    return () => { clearTimeout(initial); clearInterval(interval); };
+  }, [dualView]);
 
   // ── Relay iframe messages ──
   useEffect(() => {
+    const requestSnapshot = () => {
+      if (snapshotTimerRef.current) clearTimeout(snapshotTimerRef.current);
+      snapshotTimerRef.current = setTimeout(() => {
+        const requestId = `snap-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+        snapshotRequestRef.current = requestId;
+        postToIframe({ type: 'REQUEST_HTML', requestId });
+      }, 350);
+    };
+
     const handler = (e: MessageEvent) => {
       if (!socket) return;
+      if (e.source !== iframeRef.current?.contentWindow) return;
       const type = e.data?.type;
       if (!type) return;
 
       // Internal sync events — not interactions
       if (type === 'SYNC_PROVIDE_HTML') {
-        socket.emit("sync_html_update", { roomId, html: e.data.html });
+        if (snapshotRequestRef.current && e.data.requestId === snapshotRequestRef.current) {
+          const requestId = snapshotRequestRef.current;
+          snapshotRequestRef.current = null;
+          console.info('[sync]', { eventType: 'snapshot_ack', roomId, requestId, role: 'teacher' });
+          socket.emit("dom_snapshot", { roomId, html: e.data.html, requestId });
+        } else {
+          console.info('[sync]', { eventType: 'snapshot_ack_unrequested', roomId, requestId: e.data.requestId, role: 'teacher' });
+          socket.emit("sync_html_update", { roomId, html: e.data.html, requestId: e.data.requestId });
+        }
         return;
       }
       if (type === 'STEP_INFO') {
@@ -409,12 +677,42 @@ export default function Room() {
       if (type.startsWith('SYNC_')) {
         // Check scroll sync gate
         if (type === 'SYNC_SCROLL' && !scrollSyncEnabled) return;
-        socket.emit("interaction", { roomId, event: e.data });
+        const mirrorOnly = !!e.data.mirrorOnly;
+        if (!mirrorOnly) {
+          socket.emit("interaction", {
+            roomId,
+            event: {
+              ...e.data,
+              syncEpoch: syncEpochRef.current,
+              clientTs: Date.now(),
+            },
+          });
+        }
+        // Forward teacher-originated event to the student-mirror iframe so it
+        // visually reflects exactly what students see in real-time.
+        if (dualView && type !== 'SYNC_CURSOR') {
+          const remoteEvent = { ...e.data, type: type.replace('SYNC_', 'REMOTE_') };
+          postToMirror(remoteEvent);
+        }
+        if (!mirrorOnly && type !== 'SYNC_CURSOR' && type !== 'SYNC_SCROLL' && type !== 'SYNC_ZOOM') {
+          requestSnapshot();
+        }
       }
     };
     window.addEventListener("message", handler);
-    return () => window.removeEventListener("message", handler);
-  }, [socket, roomId, scrollSyncEnabled]);
+    return () => {
+      window.removeEventListener("message", handler);
+      if (snapshotTimerRef.current) clearTimeout(snapshotTimerRef.current);
+    };
+  }, [socket, roomId, scrollSyncEnabled, dualView, postToMirror]);
+
+  useEffect(() => {
+    syncEpochRef.current += 1;
+    // Reset iframe readiness when content source changes — the new iframe needs to fire onLoad
+    iframeReadyRef.current = false;
+    mirrorReadyRef.current = false;
+    pendingMirrorMessagesRef.current = [];
+  }, [iframeUrl, showTempContent, whiteboardMode, dualView]);
 
   // NOTE: Periodic auto-sync removed — it was causing full iframe reloads on student
   // side every 10s, making the page blink and scroll jump to top.
@@ -475,8 +773,36 @@ export default function Room() {
 
   // ── Push scroll sync state to iframe ──
   useEffect(() => {
+    postToIframe({ type: 'SET_PRESENTER_MODE', enabled: true });
     postToIframe({ type: 'SET_SCROLL_SYNC', enabled: scrollSyncEnabled });
   }, [scrollSyncEnabled, iframeUrl, postToIframe]);
+
+  // ── Zoom: push to iframe when level changes ──
+  useEffect(() => {
+    postToIframe({ type: 'SET_ZOOM', zoom: zoomLevel });
+  }, [zoomLevel, postToIframe]);
+
+  const handleZoomIn = () => {
+    const newZoom = Math.min(3, +(zoomLevel + 0.1).toFixed(2));
+    setZoomLevel(newZoom);
+    if (socket) socket.emit('zoom_changed', { roomId, zoom: newZoom });
+  };
+  const handleZoomOut = () => {
+    const newZoom = Math.max(0.5, +(zoomLevel - 0.1).toFixed(2));
+    setZoomLevel(newZoom);
+    if (socket) socket.emit('zoom_changed', { roomId, zoom: newZoom });
+  };
+  const handleZoomReset = () => {
+    setZoomLevel(1);
+    if (socket) socket.emit('zoom_changed', { roomId, zoom: 1 });
+  };
+
+  const handleHardReset = () => {
+    if (!socket) return;
+    const ok = window.confirm("🔄 Reset Session\n\nThis will start the lesson over from the beginning:\n• Chat history cleared\n• Steps reset to 1\n• All gates & quiz answers cleared\n• XP & leaderboard cleared\n• Everyone scrolled back to top\n\n✅ Uploaded files are kept safe.\n\nContinue?");
+    if (!ok) return;
+    socket.emit("hard_reset", { roomId });
+  };
 
   // ── Attention timestamp updater ──
   useEffect(() => {
@@ -499,9 +825,14 @@ export default function Room() {
     if (!uploadedFiles || !socket) return;
     Array.from(uploadedFiles).forEach((file: File) => {
       if (file.size > 2 * 1024 * 1024) { showNotif(`⚠️ ${file.name} is too large (max 2MB)`); return; }
+      if (file.size === 0) { showNotif(`⚠️ ${file.name} is empty`); return; }
       const reader = new FileReader();
       reader.onload = (ev) => {
         const content = ev.target?.result as string;
+        if (!content || content.trim().length === 0) {
+          showNotif(`⚠️ ${file.name} has no content`);
+          return;
+        }
         const entry: FileEntry = {
           id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
           name: file.name.replace(/\.html?$/i, ''),
@@ -514,7 +845,12 @@ export default function Room() {
         showNotif(`✅ Uploaded: ${entry.name}`);
       };
       reader.onerror = () => showNotif(`⚠️ Failed to read ${file.name}`);
-      reader.readAsText(file);
+      reader.onabort = () => showNotif(`⚠️ Upload of ${file.name} was cancelled`);
+      try {
+        reader.readAsText(file);
+      } catch (err) {
+        showNotif(`⚠️ Cannot read ${file.name}: ${err}`);
+      }
     });
     e.target.value = '';
   };
@@ -527,9 +863,14 @@ export default function Room() {
     if (droppedFiles.length === 0) { showNotif("⚠️ Only .html files please"); return; }
     droppedFiles.forEach((file: File) => {
       if (file.size > 2 * 1024 * 1024) { showNotif(`⚠️ ${file.name} is too large (max 2MB)`); return; }
+      if (file.size === 0) { showNotif(`⚠️ ${file.name} is empty`); return; }
       const reader = new FileReader();
       reader.onload = (ev) => {
         const content = ev.target?.result as string;
+        if (!content || content.trim().length === 0) {
+          showNotif(`⚠️ ${file.name} has no content`);
+          return;
+        }
         const entry: FileEntry = {
           id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
           name: file.name.replace(/\.html?$/i, ''),
@@ -542,7 +883,12 @@ export default function Room() {
         showNotif(`✅ Uploaded: ${entry.name}`);
       };
       reader.onerror = () => showNotif(`⚠️ Failed to read ${file.name}`);
-      reader.readAsText(file);
+      reader.onabort = () => showNotif(`⚠️ Upload of ${file.name} was cancelled`);
+      try {
+        reader.readAsText(file);
+      } catch (err) {
+        showNotif(`⚠️ Cannot read ${file.name}: ${err}`);
+      }
     });
   };
 
@@ -617,14 +963,10 @@ export default function Room() {
 
   const handleForceSync = () => {
     if (!socket) return;
-    // Capture teacher's current live DOM and save it server-side for new students,
-    // then emit force_sync so students get the latest state.
-    // The REQUEST_HTML → SYNC_PROVIDE_HTML → sync_html_update flow stores it.
-    postToIframe({ type: 'REQUEST_HTML' });
-    setTimeout(() => {
-      socket.emit("force_sync", { roomId });
-      setLastSyncTime(Date.now());
-    }, 300);
+    const requestId = `force-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+    snapshotRequestRef.current = requestId;
+    postToIframe({ type: 'REQUEST_HTML', requestId });
+    setLastSyncTime(Date.now());
   };
 
   const toggleScrollSync = () => {
@@ -694,6 +1036,31 @@ export default function Room() {
     setQuizAnswers([]);
     setShowQuizModal(false);
     showNotif("🎯 Quiz sent!");
+  };
+
+  // ── Temporary Explanation Content ──
+  const handleUploadExplanation = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !socket) return;
+    if (file.size > 2 * 1024 * 1024) { showNotif(`⚠️ File too large (max 2MB)`); return; }
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      const content = String(event.target?.result || '');
+      const name = file.name.replace(/\.html?$/i, '');
+      setTempContent({ html: content, name });
+      socket.emit('show_temp_content', { roomId, html: content, name });
+      setShowTempContent(true);
+      showNotif(`📚 Showing explanation: ${name}`);
+    };
+    reader.readAsText(file);
+    e.target.value = '';
+  };
+
+  const clearTempContent = () => {
+    if (!socket) return;
+    socket.emit('clear_temp_content', { roomId });
+    setShowTempContent(false);
+    showNotif('↩️ Back to main content');
   };
 
   const handleSetStep = (step: number) => {
@@ -1072,7 +1439,81 @@ export default function Room() {
               onToggleStudentInteraction={toggleStudentInteraction}
               onResetView={resetView}
               onAttentionCheck={sendAttentionCheck}
+              zoomLevel={zoomLevel}
+              onZoomIn={handleZoomIn}
+              onZoomOut={handleZoomOut}
+              onZoomReset={handleZoomReset}
+              onHardReset={handleHardReset}
+              leaderboardCount={leaderboard.length}
+              onToggleLeaderboard={() => setShowLeaderboard(v => !v)}
+              onToggleWhiteboard={() => {
+                const newMode = !whiteboardMode;
+                setWhiteboardMode(newMode);
+                if (socket) {
+                  socket.emit('whiteboard_mode_toggle', { roomId, active: newMode });
+                }
+              }}
+              followStudentClicks={followStudentClicks}
+              onToggleFollowStudentClicks={() => setFollowStudentClicks(v => !v)}
+              whiteboardMode={whiteboardMode}
             />
+
+            {/* Temporary Explanation Content Bar */}
+            {showTempContent && tempContent && (
+              <div className="px-4 py-2 flex items-center justify-between"
+                style={{ background: 'linear-gradient(135deg, rgba(245,158,11,0.12), rgba(251,191,36,0.12))', borderBottom: '1px solid rgba(245,158,11,0.25)' }}>
+                <div className="flex items-center gap-2">
+                  <span style={{ color: '#D97706' }}>📚</span>
+                  <span className="font-medium text-sm" style={{ color: '#92400E' }}>
+                    Showing explanation: {tempContent.name}
+                  </span>
+                </div>
+                <button
+                  onClick={clearTempContent}
+                  className="flex items-center gap-1 px-3 py-1 rounded-md text-sm font-medium transition-all"
+                  style={{
+                    background: 'rgba(245,158,11,0.2)',
+                    color: '#B45309',
+                    border: '1px solid rgba(245,158,11,0.3)'
+                  }}
+                >
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    <path d="M3 12h18M3 12l6-6M3 12l6 6"/>
+                  </svg>
+                  Back to Content
+                </button>
+              </div>
+            )}
+
+            {/* Upload Explanation Button (when no temp content) */}
+            {!showTempContent && (
+              <div className="px-4 py-2">
+                <button
+                  onClick={() => tempFileInputRef.current?.click()}
+                  className="flex items-center gap-2 px-3 py-1.5 rounded-md text-sm font-medium transition-all"
+                  style={{
+                    background: 'linear-gradient(135deg, rgba(99,102,241,0.12), rgba(139,92,246,0.12))',
+                    border: '1px solid rgba(99,102,241,0.25)',
+                    color: '#6366F1'
+                  }}
+                >
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+                    <polyline points="14 2 14 8 20 8"/>
+                    <line x1="12" y1="18" x2="12" y2="12"/>
+                    <line x1="9" y1="15" x2="15" y2="15"/>
+                  </svg>
+                  Upload Explanation HTML
+                </button>
+                <input
+                  ref={tempFileInputRef}
+                  type="file"
+                  accept=".html,.htm"
+                  onChange={handleUploadExplanation}
+                  className="hidden"
+                />
+              </div>
+            )}
 
             {/* Step Controls */}
             <StepControls
@@ -1085,13 +1526,75 @@ export default function Room() {
               gates={gates}
             />
 
-            {/* Iframe */}
+            {/* Iframe or Whiteboard */}
             <div className="flex-1 relative overflow-hidden m-3 rounded-xl preview-frame">
-              {iframeUrl ? (
-                <iframe ref={iframeRef} src={iframeUrl} className="w-full h-full border-none"
+              {/* Dual View toggle — appears once content is loaded */}
+              {iframeUrl && !showTempContent && !whiteboardMode && (
+                <button
+                  onClick={() => setDualView(v => !v)}
+                  className="absolute top-2 right-2 z-20 px-3 py-1.5 rounded-lg text-xs font-semibold shadow-md"
+                  style={{
+                    background: dualView ? '#10B981' : 'rgba(255,255,255,0.95)',
+                    color: dualView ? '#fff' : '#111827',
+                    border: '1px solid rgba(0,0,0,0.08)',
+                  }}
+                  title="Show a live mirror of what students see"
+                >
+                  {dualView ? '✕ Exit Dual View' : '👥 Dual View'}
+                </button>
+              )}
+              {showTempContent && tempContent && tempContentUrl ? (
+                // Temporary explanation content overlay — uses same ref so scroll sync works
+                <iframe
+                  ref={iframeRef}
+                  src={tempContentUrl}
+                  className="w-full h-full border-none"
                   style={{ background: '#ffffff' }}
                   onLoad={handleIframeLoad}
-                  sandbox="allow-scripts allow-same-origin allow-forms allow-modals allow-popups allow-pointer-lock" />
+                  sandbox="allow-scripts allow-same-origin allow-forms allow-modals allow-popups allow-pointer-lock"
+                />
+              ) : whiteboardMode ? (
+                <Whiteboard
+                  ref={whiteboardRef}
+                  socket={socket}
+                  roomId={roomId!}
+                  isTeacher={true}
+                  interactive={true}
+                  zoomLevel={zoomLevel}
+                  scrollX={whiteboardScrollX}
+                  scrollY={whiteboardScrollY}
+                  isActive={true}
+                  initialState={whiteboardState}
+                />
+              ) : iframeUrl ? (
+                <div className="w-full h-full flex">
+                  <div className={dualView ? "relative flex-1 border-r border-gray-300" : "relative w-full h-full"}>
+                    {dualView && (
+                      <div className="absolute top-2 left-2 z-10 px-2 py-0.5 rounded text-xs font-semibold"
+                        style={{ background: 'rgba(59,130,246,0.9)', color: '#fff' }}>
+                        Teacher View
+                      </div>
+                    )}
+                    <iframe ref={iframeRef} src={iframeUrl} className="w-full h-full border-none"
+                      style={{ background: '#ffffff' }}
+                      onLoad={handleIframeLoad}
+                      sandbox="allow-scripts allow-same-origin allow-forms allow-modals allow-popups allow-pointer-lock" />
+                  </div>
+                  {dualView && (
+                    <div className="relative flex-1">
+                      <div className="absolute top-2 left-2 z-10 px-2 py-0.5 rounded text-xs font-semibold"
+                        style={{ background: 'rgba(16,185,129,0.9)', color: '#fff' }}>
+                        Student Mirror (live)
+                      </div>
+                      <iframe ref={mirrorIframeRef} src={iframeUrl} className="w-full h-full border-none"
+                        style={{ background: '#ffffff' }}
+                        onLoad={handleMirrorLoad}
+                        sandbox="allow-scripts allow-same-origin allow-forms allow-modals allow-popups allow-pointer-lock" />
+                      {/* Block all pointer interactions inside the mirror so it stays passive */}
+                      <div className="absolute inset-0" style={{ pointerEvents: 'auto', cursor: 'not-allowed' }} />
+                    </div>
+                  )}
+                </div>
               ) : (
                 <div className="flex items-center justify-center h-full" style={{ background: 'var(--bg-surface)' }}>
                   <div className="text-center">
@@ -1239,6 +1742,14 @@ export default function Room() {
         currentHtml={previewHtml}
         currentName={activeFile?.name}
       />
+
+      {/* ═══ LEADERBOARD ═══ */}
+      <Leaderboard
+        entries={leaderboard}
+        open={showLeaderboard}
+        onClose={() => setShowLeaderboard(false)}
+      />
+
     </div>
   );
 }

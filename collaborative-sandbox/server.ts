@@ -32,7 +32,48 @@ interface RoomData {
   // Room password (optional)
   password: string | null;
   // Students waiting for HTML sync from teacher (joined before teacher's DOM capture arrives)
-  pendingSyncStudents: string[];
+  pendingSyncStudents: Set<string>;
+  // Gamification: track XP and streaks per student name (keyed by studentName for persistence across reconnects)
+  scores: Record<string, { xp: number; streak: number; bestStreak: number; correct: number; total: number }>;
+  // Monotonic interaction sequence for ordering guarantees
+  interactionSeq: number;
+  // Temporary explanation content (persists so late-joining students see it)
+  tempContent: { html: string; name: string } | null;
+  liveSnapshotHtml: string | null;
+  revision: number;
+  whiteboard: {
+    objects: any[];
+    strokes: any[];
+    view: any | null;
+  };
+  lastTeacherScroll: any | null;
+  zoomLevel: number;
+}
+
+interface SessionStatePayload {
+  type: 'session_state' | 'sync_full_state';
+  reason: 'join' | 'reconnect' | 'request_content' | 'run_preview' | 'snapshot_ack' | 'force_sync' | 'restore';
+  roomId: string;
+  requestId?: string;
+  revision: number;
+  activeFileId: string | null;
+  sourceHtml: string | null;
+  liveSnapshotHtml: string | null;
+  effectiveHtml: string | null;
+  files: FileEntry[];
+  isPaused: boolean;
+  scrollSyncEnabled: boolean;
+  studentInteractionAllowed: boolean;
+  currentStep: number;
+  gates: Record<number, { question: string; options: string[]; correctIndex: number }>;
+  tempContent: { html: string; name: string } | null;
+  whiteboard: {
+    objects: any[];
+    strokes: any[];
+    view: any | null;
+  };
+  lastTeacherScroll: any | null;
+  zoomLevel: number;
 }
 
 async function startServer() {
@@ -128,7 +169,15 @@ async function startServer() {
       scrollSyncEnabled: true,
       studentInteractionAllowed: false, // View-only by default
       password: null,
-      pendingSyncStudents: [],
+      pendingSyncStudents: new Set(),
+      scores: {},
+      interactionSeq: 0,
+      tempContent: null,
+      liveSnapshotHtml: null,
+      revision: 0,
+      whiteboard: { objects: [], strokes: [], view: null },
+      lastTeacherScroll: null,
+      zoomLevel: 1,
     };
   }
 
@@ -155,6 +204,12 @@ async function startServer() {
       scrollSyncEnabled: room.scrollSyncEnabled,
       studentInteractionAllowed: room.studentInteractionAllowed,
       password: room.password,
+      scores: room.scores,
+      revision: room.revision,
+      liveSnapshotHtml: room.liveSnapshotHtml,
+      whiteboard: room.whiteboard,
+      lastTeacherScroll: room.lastTeacherScroll,
+      zoomLevel: room.zoomLevel,
     };
   }
 
@@ -203,6 +258,12 @@ async function startServer() {
           room.scrollSyncEnabled = raw.scrollSyncEnabled !== false;
           room.studentInteractionAllowed = !!raw.studentInteractionAllowed;
           room.password = raw.password || null;
+          room.scores = raw.scores || {};
+          room.revision = raw.revision || 0;
+          room.liveSnapshotHtml = raw.liveSnapshotHtml || null;
+          room.whiteboard = raw.whiteboard || { objects: [], strokes: [], view: null };
+          room.lastTeacherScroll = raw.lastTeacherScroll || null;
+          room.zoomLevel = raw.zoomLevel || 1;
           rooms.set(raw.roomId, room);
           restored++;
         } catch { fs.unlinkSync(filePath); cleaned++; }
@@ -249,6 +310,79 @@ async function startServer() {
     return typeof roomId === 'string' && roomId.length > 0 && roomId.length <= MAX_ROOM_ID_LENGTH && /^[a-zA-Z0-9_-]+$/.test(roomId);
   }
 
+  function isMember(room: RoomData | undefined, socketId: string): room is RoomData {
+    return !!room && room.users.has(socketId);
+  }
+
+  function requireTeacher(room: RoomData | undefined, socketId: string): room is RoomData {
+    return !!room && room.teacherSocketId === socketId && room.users.get(socketId)?.role === 'teacher';
+  }
+
+  function bumpRevision(room: RoomData): number {
+    room.revision += 1;
+    return room.revision;
+  }
+
+  function getSourceHtml(room: RoomData): string | null {
+    if (room.activeFileId) {
+      const file = room.files.find(f => f.id === room.activeFileId);
+      if (file?.html) return file.html;
+    }
+    return room.lastRunHtml;
+  }
+
+  function buildSessionState(roomId: string, room: RoomData, type: SessionStatePayload['type'], reason: SessionStatePayload['reason'], requestId?: string): SessionStatePayload {
+    const sourceHtml = getSourceHtml(room);
+    const effectiveHtml = room.liveSnapshotHtml || room.lastRunHtml || sourceHtml;
+    return {
+      type,
+      reason,
+      roomId,
+      requestId,
+      revision: room.revision,
+      activeFileId: room.activeFileId,
+      sourceHtml,
+      liveSnapshotHtml: room.liveSnapshotHtml,
+      effectiveHtml,
+      files: room.files,
+      isPaused: room.isPaused,
+      scrollSyncEnabled: room.scrollSyncEnabled,
+      studentInteractionAllowed: room.studentInteractionAllowed,
+      currentStep: room.currentStep,
+      gates: room.gates,
+      tempContent: room.tempContent,
+      whiteboard: room.whiteboard,
+      lastTeacherScroll: room.lastTeacherScroll,
+      zoomLevel: room.zoomLevel,
+    };
+  }
+
+  function logSync(eventType: string, details: { roomId: string; revision?: number; requestId?: string; role?: string; socketId?: string; reason?: string }) {
+    console.log(JSON.stringify({
+      scope: 'sync',
+      eventType,
+      roomId: details.roomId,
+      revision: details.revision,
+      requestId: details.requestId,
+      role: details.role,
+      socketId: details.socketId,
+      reason: details.reason,
+      at: Date.now(),
+    }));
+  }
+
+  function emitSessionState(socketId: string, roomId: string, room: RoomData, reason: SessionStatePayload['reason'], requestId?: string) {
+    const payload = buildSessionState(roomId, room, 'session_state', reason, requestId);
+    io.to(socketId).emit('session_state', payload);
+    logSync('session_state', { roomId, revision: payload.revision, requestId, socketId, reason });
+  }
+
+  function broadcastFullState(roomId: string, room: RoomData, reason: SessionStatePayload['reason'], requestId?: string) {
+    const payload = buildSessionState(roomId, room, 'sync_full_state', reason, requestId);
+    io.to(roomId).emit('sync_full_state', payload);
+    logSync('sync_full_state', { roomId, revision: payload.revision, requestId, reason });
+  }
+
   // ─── CHAT RATE LIMITING ───
   const chatRateLimits = new Map<string, { count: number; resetAt: number }>();
   const CHAT_RATE_LIMIT = 10; // max messages per window
@@ -289,8 +423,13 @@ async function startServer() {
         return;
       }
 
+      const existingRoom = rooms.get(roomId);
+      if (!existingRoom && role !== 'teacher') {
+        socket.emit('join_error', { message: 'Room not found. Ask the teacher to start the room first.' });
+        return;
+      }
       updateRoomActivity(roomId);
-      if (!rooms.has(roomId)) {
+      if (!existingRoom) {
         rooms.set(roomId, createRoom());
       }
       const room = rooms.get(roomId)!;
@@ -313,13 +452,13 @@ async function startServer() {
         room.teacherSocketId = socket.id;
       } else if (role === 'student' && room.teacherSocketId) {
         // Track this student as needing fresh HTML from teacher's live DOM
-        room.pendingSyncStudents.push(socket.id);
+        room.pendingSyncStudents.add(socket.id);
         // Auto-request the teacher to send their live DOM state to catch up this student
-        io.to(room.teacherSocketId).emit('request_html_sync');
+        io.to(room.teacherSocketId).emit('request_html_sync', { requestId: `late-${socket.id}-${Date.now()}` });
       }
 
-      // Send current state to the newly joined user
-      socket.emit('room_state', {
+      // Send current state to the newly joined user (legacy + canonical)
+      const legacyState = {
         files: room.files,
         activeFileId: room.activeFileId,
         lastRunHtml: room.lastRunHtml,
@@ -328,9 +467,25 @@ async function startServer() {
         studentInteractionAllowed: room.studentInteractionAllowed,
         currentStep: room.currentStep,
         gates: room.gates,
+        revision: room.revision,
         users: getRoomUserList(room),
         chat: room.chat.slice(-50), // Last 50 messages
-      });
+      };
+      socket.emit('room_state', legacyState);
+      emitSessionState(socket.id, roomId, room, 'join');
+      if (role === 'student' && room.lastTeacherScroll) {
+        socket.emit('interaction', room.lastTeacherScroll);
+      }
+
+      // Immediately push content to the joining student so they don't stay on "Waiting for teacher"
+      if (role === 'student' && room.lastRunHtml && room.activeFileId) {
+        socket.emit('run_preview', { fileId: room.activeFileId, html: room.lastRunHtml, revision: room.revision });
+      }
+
+      // If temp explanation content is active, send it to the joining student
+      if (role === 'student' && room.tempContent) {
+        socket.emit('temp_content', { html: room.tempContent.html, name: room.tempContent.name });
+      }
 
       // Broadcast updated user list
       io.to(roomId).emit('user_list', getRoomUserList(room));
@@ -340,21 +495,22 @@ async function startServer() {
     // If a student missed the initial HTML delivery, they can request it again
     socket.on('request_content', ({ roomId }: { roomId: string }) => {
       const room = rooms.get(roomId);
-      if (!room) return;
+      if (!isMember(room, socket.id)) return;
+      emitSessionState(socket.id, roomId, room, 'request_content');
       if (room.lastRunHtml) {
-        socket.emit('run_preview', { fileId: room.activeFileId, html: room.lastRunHtml });
+        socket.emit('run_preview', { fileId: room.activeFileId, html: room.lastRunHtml, revision: room.revision });
       }
       // Also ask teacher for fresh DOM if available
       if (room.teacherSocketId) {
-        room.pendingSyncStudents.push(socket.id);
-        io.to(room.teacherSocketId).emit('request_html_sync');
+        room.pendingSyncStudents.add(socket.id);
+        io.to(room.teacherSocketId).emit('request_html_sync', { requestId: `retry-${socket.id}-${Date.now()}` });
       }
     });
 
     // ─── SET ROOM PASSWORD ───
     socket.on('set_room_password', ({ roomId, password }: { roomId: string; password: string | null }) => {
       const room = rooms.get(roomId);
-      if (!room || room.teacherSocketId !== socket.id) return;
+      if (!requireTeacher(room, socket.id)) return;
       room.password = password;
       console.log(`🔒 Room ${roomId}: Password ${password ? 'set' : 'removed'}`);
     });
@@ -364,10 +520,29 @@ async function startServer() {
       if (!isValidRoomId(roomId)) return;
       updateRoomActivity(roomId);
       const room = rooms.get(roomId);
-      if (!room) return;
+      if (!requireTeacher(room, socket.id)) {
+        socket.emit('upload_error', { message: 'Room not found' });
+        return;
+      }
+      // Validate file object
+      if (!file || typeof file !== 'object') {
+        socket.emit('upload_error', { message: 'Invalid file data' });
+        return;
+      }
+      // Validate HTML content exists
+      if (!file.html || typeof file.html !== 'string') {
+        socket.emit('upload_error', { message: 'File content is missing or invalid' });
+        return;
+      }
+      // Validate non-empty content (after trimming)
+      const trimmedHtml = file.html.trim();
+      if (trimmedHtml.length === 0) {
+        socket.emit('upload_error', { message: 'File is empty' });
+        return;
+      }
       // Validate file size
-      if (file?.html && file.html.length > MAX_FILE_SIZE) {
-        socket.emit('upload_error', { message: 'File too large (max 2MB)' });
+      if (file.html.length > MAX_FILE_SIZE) {
+        socket.emit('upload_error', { message: `File too large (${(file.html.length / 1024 / 1024).toFixed(1)}MB, max 2MB)` });
         return;
       }
       // Validate file count
@@ -378,15 +553,18 @@ async function startServer() {
       room.files.push(file);
       room.activeFileId = file.id;
       room.lastRunHtml = file.html;
+      room.liveSnapshotHtml = null;
+      const revision = bumpRevision(room);
       io.to(roomId).emit('file_uploaded', file);
-      io.to(roomId).emit('active_file_changed', { fileId: file.id, fileName: file.name, html: file.html });
+      io.to(roomId).emit('active_file_changed', { fileId: file.id, fileName: file.name, html: file.html, currentStep: room.currentStep, revision });
+      broadcastFullState(roomId, room, 'run_preview');
       // Auto-push HTML to all connected clients immediately
-      io.to(roomId).emit('run_preview', { fileId: file.id, html: file.html });
+      io.to(roomId).emit('run_preview', { fileId: file.id, html: file.html, revision });
     });
 
     socket.on('update_file', ({ roomId, fileId, html }: { roomId: string; fileId: string; html: string }) => {
       const room = rooms.get(roomId);
-      if (!room) return;
+      if (!requireTeacher(room, socket.id)) return;
       const file = room.files.find(f => f.id === fileId);
       if (file) {
         file.html = html;
@@ -396,7 +574,7 @@ async function startServer() {
 
     socket.on('delete_file', ({ roomId, fileId }: { roomId: string; fileId: string }) => {
       const room = rooms.get(roomId);
-      if (!room) return;
+      if (!requireTeacher(room, socket.id)) return;
       room.files = room.files.filter(f => f.id !== fileId);
       if (room.activeFileId === fileId) {
         room.activeFileId = room.files.length > 0 ? room.files[0].id : null;
@@ -406,14 +584,17 @@ async function startServer() {
 
     socket.on('switch_file', ({ roomId, fileId }: { roomId: string; fileId: string }) => {
       const room = rooms.get(roomId);
-      if (!room) return;
+      if (!requireTeacher(room, socket.id)) return;
       room.activeFileId = fileId;
       const file = room.files.find(f => f.id === fileId);
       if (file) {
         room.lastRunHtml = file.html;
+        room.liveSnapshotHtml = null;
+        const revision = bumpRevision(room);
         // Send file content WITH the active_file_changed so student never reads stale state
-        io.to(roomId).emit('active_file_changed', { fileId, fileName: file.name, html: file.html });
-        io.to(roomId).emit('run_preview', { fileId, html: file.html });
+        io.to(roomId).emit('active_file_changed', { fileId, fileName: file.name, html: file.html, currentStep: room.currentStep, revision });
+        broadcastFullState(roomId, room, 'run_preview');
+        io.to(roomId).emit('run_preview', { fileId, html: file.html, revision });
       }
     });
 
@@ -421,7 +602,7 @@ async function startServer() {
     socket.on('run_preview', ({ roomId, fileId, html }: { roomId: string; fileId: string; html: string }) => {
       updateRoomActivity(roomId);
       const room = rooms.get(roomId);
-      if (!room) return;
+      if (!requireTeacher(room, socket.id)) return;
       // Update the file content
       const file = room.files.find(f => f.id === fileId);
       if (file) {
@@ -429,57 +610,74 @@ async function startServer() {
       }
       room.activeFileId = fileId;
       room.lastRunHtml = html;
+      room.liveSnapshotHtml = null;
+      const revision = bumpRevision(room);
+      broadcastFullState(roomId, room, 'run_preview');
       // Send to everyone (including sender for confirmation)
-      io.to(roomId).emit('run_preview', { fileId, html });
+      io.to(roomId).emit('run_preview', { fileId, html, revision });
     });
 
-    socket.on('sync_html_update', ({ roomId, html }: { roomId: string; html: string }) => {
+    socket.on('sync_html_update', ({ roomId, html, requestId }: { roomId: string; html: string; requestId?: string }) => {
       const room = rooms.get(roomId);
-      if (!room || !room.activeFileId) return;
+      if (!requireTeacher(room, socket.id) || !room.activeFileId) return;
       // Store for future students
       room.lastRunHtml = html;
+      room.liveSnapshotHtml = html;
+      const file = room.files.find(f => f.id === room.activeFileId);
+      if (file) file.html = html;
+      const revision = bumpRevision(room);
       // Send to any students waiting for the teacher's live DOM
       // (these students joined after the teacher and need the current content)
-      if (room.pendingSyncStudents.length > 0) {
-        const pending = room.pendingSyncStudents;
-        room.pendingSyncStudents = [];
+      if (room.pendingSyncStudents.size > 0) {
+        const pending = Array.from(room.pendingSyncStudents);
+        room.pendingSyncStudents.clear();
         for (const studentId of pending) {
-          io.to(studentId).emit('run_preview', { fileId: room.activeFileId, html });
+          emitSessionState(studentId, roomId, room, 'snapshot_ack', requestId);
+          io.to(studentId).emit('run_preview', { fileId: room.activeFileId, html, revision });
         }
-        console.log(`📤 Sent live HTML to ${pending.length} pending student(s) in room ${roomId}`);
+        logSync('pending_snapshot_ack', { roomId, revision, requestId, reason: `pending=${pending.length}` });
       }
+    });
+
+    socket.on('dom_snapshot', ({ roomId, html, requestId }: { roomId: string; html: string; requestId?: string }) => {
+      const room = rooms.get(roomId);
+      if (!requireTeacher(room, socket.id) || !room.activeFileId) return;
+      room.liveSnapshotHtml = html;
+      room.lastRunHtml = html;
+      const file = room.files.find(f => f.id === room.activeFileId);
+      if (file) file.html = html;
+      const revision = bumpRevision(room);
+      broadcastFullState(roomId, room, requestId?.startsWith('force-') ? 'force_sync' : 'snapshot_ack', requestId);
+      io.to(roomId).emit('dom_snapshot', { fileId: room.activeFileId, html, revision, requestId });
+      logSync('snapshot_ack', { roomId, revision, requestId });
     });
 
     // ─── FORCE SYNC (Server-authoritative) ───
     socket.on('force_sync', ({ roomId }: { roomId: string }) => {
       const room = rooms.get(roomId);
-      if (!room) return;
+      if (!requireTeacher(room, socket.id)) return;
       updateRoomActivity(roomId);
 
-      // Build the authoritative state snapshot
-      const syncPayload = {
-        files: room.files,
-        activeFileId: room.activeFileId,
-        lastRunHtml: room.lastRunHtml,
-        isPaused: room.isPaused,
-      };
-
-      // Broadcast to all clients in the room
-      io.to(roomId).emit('force_sync_state', syncPayload);
-      console.log(`🔄 Force Sync triggered for room ${roomId}`);
+      const requestId = `force-${socket.id}-${Date.now()}`;
+      if (room.teacherSocketId) {
+        io.to(room.teacherSocketId).emit('request_html_sync', { requestId, reason: 'force_sync' });
+        logSync('snapshot_request', { roomId, revision: room.revision, requestId, role: 'teacher', socketId: socket.id, reason: 'force_sync' });
+      } else {
+        broadcastFullState(roomId, room, 'force_sync', requestId);
+      }
     });
 
     // ─── TEACHER CONTROLS ───
     socket.on('pause_session', ({ roomId }: { roomId: string }) => {
       const room = rooms.get(roomId);
-      if (!room) return;
+      if (!requireTeacher(room, socket.id)) return;
       room.isPaused = true;
       io.to(roomId).emit('session_paused');
     });
 
     socket.on('resume_session', ({ roomId }: { roomId: string }) => {
       const room = rooms.get(roomId);
-      if (!room) return;
+      if (!requireTeacher(room, socket.id)) return;
       room.isPaused = false;
       io.to(roomId).emit('session_resumed');
     });
@@ -487,31 +685,44 @@ async function startServer() {
     // ─── SCROLL SYNC TOGGLE ───
     socket.on('toggle_scroll_sync', ({ roomId, enabled }: { roomId: string; enabled: boolean }) => {
       const room = rooms.get(roomId);
-      if (!room) return;
+      if (!requireTeacher(room, socket.id)) return;
       room.scrollSyncEnabled = enabled;
-      io.to(roomId).emit('scroll_sync_changed', { enabled });
+      const revision = bumpRevision(room);
+      io.to(roomId).emit('scroll_sync_changed', { enabled, revision });
+      broadcastFullState(roomId, room, 'force_sync');
     });
 
     // ─── STUDENT INTERACTION TOGGLE ───
     socket.on('toggle_student_interaction', ({ roomId, allowed }: { roomId: string; allowed: boolean }) => {
       const room = rooms.get(roomId);
-      if (!room || room.teacherSocketId !== socket.id) return; // Only teacher
+      if (!requireTeacher(room, socket.id)) return; // Only teacher
       room.studentInteractionAllowed = allowed;
-      io.to(roomId).emit('student_interaction_changed', { allowed });
+      const revision = bumpRevision(room);
+      io.to(roomId).emit('student_interaction_changed', { allowed, revision });
+      broadcastFullState(roomId, room, 'force_sync');
       console.log(`${allowed ? '🖐️' : '👁️'} Room ${roomId}: Student interaction ${allowed ? 'enabled' : 'disabled (view-only)'}`);
     });
 
     // ─── RESET VIEW (scroll everyone to top) ───
+    socket.on('zoom_changed', ({ roomId, zoom }: { roomId: string; zoom: number }) => {
+      const room = rooms.get(roomId);
+      if (!requireTeacher(room, socket.id)) return;
+      const safeZoom = Math.max(0.5, Math.min(3, Number(zoom) || 1));
+      room.zoomLevel = safeZoom;
+      const revision = bumpRevision(room);
+      io.to(roomId).emit('zoom_changed', { zoom: safeZoom, revision });
+    });
+
     socket.on('reset_view', ({ roomId }: { roomId: string }) => {
       const room = rooms.get(roomId);
-      if (!room || room.teacherSocketId !== socket.id) return;
+      if (!requireTeacher(room, socket.id)) return;
       io.to(roomId).emit('reset_view');
     });
 
     // ─── ATTENTION CHECK ───
     socket.on('attention_check', ({ roomId }: { roomId: string }) => {
       const room = rooms.get(roomId);
-      if (!room || room.teacherSocketId !== socket.id) return;
+      if (!requireTeacher(room, socket.id)) return;
       io.to(roomId).emit('attention_check', { timestamp: Date.now() });
     });
 
@@ -523,6 +734,8 @@ async function startServer() {
 
     // ─── REACTIONS ───
     socket.on('send_reaction', ({ roomId, emoji, fromName }: { roomId: string; emoji: string; fromName: string }) => {
+      const room = rooms.get(roomId);
+      if (!isMember(room, socket.id)) return;
       io.to(roomId).emit('reaction', { emoji, fromName, senderId: socket.id });
     });
 
@@ -535,7 +748,7 @@ async function startServer() {
       if (!safeMessage) return; // Empty message after sanitization
       updateRoomActivity(roomId);
       const room = rooms.get(roomId);
-      if (!room) return;
+      if (!isMember(room, socket.id)) return;
       const chatMsg = {
         id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
         userId: socket.id,
@@ -552,6 +765,8 @@ async function startServer() {
     // ─── QUIZ / QUESTIONS ───
     socket.on('send_quiz', ({ roomId, question, options }: { roomId: string; question: string; options?: string[] }) => {
       if (!isValidRoomId(roomId)) return;
+      const room = rooms.get(roomId);
+      if (!requireTeacher(room, socket.id)) return;
       const safeQuestion = sanitizeString(question, MAX_QUIZ_QUESTION_LENGTH);
       if (!safeQuestion) return;
       io.to(roomId).emit('quiz', { question: safeQuestion, options, senderId: socket.id });
@@ -560,19 +775,21 @@ async function startServer() {
     socket.on('quiz_answer', ({ roomId, answer, studentName }: { roomId: string; answer: string; studentName: string }) => {
       // Send answer to teacher
       const room = rooms.get(roomId);
-      if (!room || !room.teacherSocketId) return;
+      if (!isMember(room, socket.id) || !room.teacherSocketId) return;
       io.to(room.teacherSocketId).emit('quiz_answer_received', { answer, studentName, studentId: socket.id });
     });
 
     // ─── RAISE HAND ───
     socket.on('raise_hand', ({ roomId, studentName }: { roomId: string; studentName: string }) => {
       const room = rooms.get(roomId);
-      if (!room) return;
+      if (!isMember(room, socket.id)) return;
       io.to(roomId).emit('hand_raised', { studentName, studentId: socket.id });
     });
 
     // ─── SPOTLIGHT / ANNOTATION ───
     socket.on('spotlight', ({ roomId, x, y, active }: { roomId: string; x: number; y: number; active: boolean }) => {
+      const room = rooms.get(roomId);
+      if (!requireTeacher(room, socket.id)) return;
       socket.to(roomId).emit('spotlight', { x, y, active, senderId: socket.id });
     });
 
@@ -582,37 +799,147 @@ async function startServer() {
     });
 
     socket.on('draw_clear', ({ roomId }: { roomId: string }) => {
-      socket.to(roomId).emit('draw_clear');
+      const room = rooms.get(roomId);
+      if (!requireTeacher(room, socket.id)) return;
+      // Broadcast to the FULL room including sender — the teacher who
+      // pressed Clear also needs their own canvas cleared.
+      io.to(roomId).emit('draw_clear');
+    });
+
+    // ─── WHITEBOARD ───
+    socket.on('whiteboard_draw', ({ roomId, stroke }: any) => {
+      const room = rooms.get(roomId);
+      if (!isMember(room, socket.id)) return;
+      room.whiteboard.strokes.push(stroke);
+      if (room.whiteboard.strokes.length > 5000) room.whiteboard.strokes = room.whiteboard.strokes.slice(-5000);
+      socket.to(roomId).emit('whiteboard_stroke', { stroke, senderId: socket.id });
+    });
+
+    socket.on('whiteboard_set_image', ({ roomId, imageUrl }: { roomId: string; imageUrl: string }) => {
+      const room = rooms.get(roomId);
+      if (!requireTeacher(room, socket.id)) return;
+      io.to(roomId).emit('whiteboard_image', { imageUrl });
+    });
+
+    socket.on('whiteboard_add_image', ({ roomId, object }: any) => {
+      const room = rooms.get(roomId);
+      if (!requireTeacher(room, socket.id)) return;
+      room.whiteboard.objects.push(object);
+      io.to(roomId).emit('whiteboard_add_image', { object });
+    });
+
+    socket.on('whiteboard_update_object', ({ roomId, object }: any) => {
+      const room = rooms.get(roomId);
+      if (!requireTeacher(room, socket.id)) return;
+      room.whiteboard.objects = room.whiteboard.objects.map(obj => obj.id === object.id ? object : obj);
+      socket.to(roomId).emit('whiteboard_update_object', { object });
+    });
+
+    socket.on('whiteboard_remove_object', ({ roomId, objectId }: { roomId: string; objectId: string }) => {
+      const room = rooms.get(roomId);
+      if (!requireTeacher(room, socket.id)) return;
+      room.whiteboard.objects = room.whiteboard.objects.filter(obj => obj.id !== objectId);
+      io.to(roomId).emit('whiteboard_remove_object', { objectId });
+    });
+
+    socket.on('whiteboard_set_view', ({ roomId, view }: any) => {
+      const room = rooms.get(roomId);
+      if (!requireTeacher(room, socket.id)) return;
+      room.whiteboard.view = view;
+      socket.to(roomId).emit('whiteboard_set_view', { view });
+    });
+
+    socket.on('whiteboard_clear', ({ roomId }: { roomId: string }) => {
+      const room = rooms.get(roomId);
+      if (!requireTeacher(room, socket.id)) return;
+      room.whiteboard = { objects: [], strokes: [], view: null };
+      io.to(roomId).emit('whiteboard_clear');
+    });
+
+    socket.on('whiteboard_reset', ({ roomId }: { roomId: string }) => {
+      const room = rooms.get(roomId);
+      if (!requireTeacher(room, socket.id)) return;
+      room.whiteboard.strokes = [];
+      io.to(roomId).emit('whiteboard_reset');
+    });
+
+    socket.on('whiteboard_delete_stroke', ({ roomId, strokeIndex }: { roomId: string; strokeIndex: number }) => {
+      const room = rooms.get(roomId);
+      if (!requireTeacher(room, socket.id)) return;
+      if (strokeIndex >= 0 && strokeIndex < room.whiteboard.strokes.length) {
+        room.whiteboard.strokes.splice(strokeIndex, 1);
+      }
+      socket.to(roomId).emit('whiteboard_delete_stroke', { strokeIndex });
+    });
+
+    socket.on('whiteboard_mode_toggle', ({ roomId, active }: { roomId: string; active: boolean }) => {
+      const room = rooms.get(roomId);
+      if (!requireTeacher(room, socket.id)) return;
+      // Broadcast whiteboard mode change to all users in room
+      io.to(roomId).emit('whiteboard_mode_changed', { active });
+    });
+
+    socket.on('whiteboard_scroll', ({ roomId, scrollX, scrollY }: { roomId: string; scrollX: number; scrollY: number }) => {
+      const room = rooms.get(roomId);
+      if (!requireTeacher(room, socket.id)) return;
+      socket.to(roomId).emit('whiteboard_scroll', { scrollX, scrollY });
+    });
+
+    // ─── TEMPORARY EXPLANATION CONTENT ───
+    socket.on('show_temp_content', ({ roomId, html, name }: { roomId: string; html: string; name: string }) => {
+      const room = rooms.get(roomId);
+      if (!requireTeacher(room, socket.id)) return;
+      if (room) room.tempContent = { html, name };
+      // Broadcast temporary explanation content to all users in room
+      io.to(roomId).emit('temp_content', { html, name });
+    });
+
+    socket.on('clear_temp_content', ({ roomId }: { roomId: string }) => {
+      const room = rooms.get(roomId);
+      if (!requireTeacher(room, socket.id)) return;
+      if (room) room.tempContent = null;
+      // Clear temporary content and return to main content
+      io.to(roomId).emit('clear_temp_content');
     });
 
     // ─── LASER POINTER ───
     socket.on('laser_pointer', ({ roomId, x, y, active }: { roomId: string; x: number; y: number; active: boolean }) => {
+      const room = rooms.get(roomId);
+      if (!requireTeacher(room, socket.id)) return;
       socket.to(roomId).emit('laser_pointer', { x, y, active });
     });
 
     // ─── CHALLENGE TIMER ───
     socket.on('start_timer', ({ roomId, seconds }: { roomId: string; seconds: number }) => {
+      const room = rooms.get(roomId);
+      if (!requireTeacher(room, socket.id)) return;
       io.to(roomId).emit('timer_started', { seconds, startedAt: Date.now() });
     });
 
     socket.on('stop_timer', ({ roomId }: { roomId: string }) => {
+      const room = rooms.get(roomId);
+      if (!requireTeacher(room, socket.id)) return;
       io.to(roomId).emit('timer_stopped');
     });
 
     // ─── CELEBRATION ───
     socket.on('trigger_celebration', ({ roomId, type }: { roomId: string; type: string }) => {
+      const room = rooms.get(roomId);
+      if (!requireTeacher(room, socket.id)) return;
       io.to(roomId).emit('celebration', { type });
     });
 
     // ─── STUDENT QUICK REACTIONS ───
     socket.on('student_reaction', ({ roomId, emoji, label, studentName }: { roomId: string; emoji: string; label: string; studentName: string }) => {
       const room = rooms.get(roomId);
-      if (!room || !room.teacherSocketId) return;
+      if (!isMember(room, socket.id) || !room.teacherSocketId) return;
       io.to(room.teacherSocketId).emit('student_feedback', { emoji, label, studentName, studentId: socket.id });
     });
 
     // ─── FOCUS MODE ───
     socket.on('focus_mode', ({ roomId, active, x, y, radius }: { roomId: string; active: boolean; x: number; y: number; radius: number }) => {
+      const room = rooms.get(roomId);
+      if (!requireTeacher(room, socket.id)) return;
       updateRoomActivity(roomId);
       socket.to(roomId).emit('focus_mode', { active, x, y, radius });
     });
@@ -623,13 +950,19 @@ async function startServer() {
       updateRoomActivity(roomId);
       event.userId = socket.id;
       const room = rooms.get(roomId);
-      if (!room) return;
+      if (!isMember(room, socket.id)) return;
 
       const user = room.users.get(socket.id);
       if (user) event.userName = user.name;
       event.role = user?.role || 'unknown';
+      room.interactionSeq += 1;
+      event.serverSeq = room.interactionSeq;
+      event.serverTs = Date.now();
 
       if (user?.role === 'teacher') {
+        if (event.type === 'SYNC_SCROLL') {
+          room.lastTeacherScroll = event;
+        }
         // Teacher → broadcast to all students (one-way sync)
         socket.to(roomId).emit('interaction', event);
       } else if (user?.role === 'student') {
@@ -652,7 +985,7 @@ async function startServer() {
     // ─── ATTENTION DETECTION ───
     socket.on('attention_change', ({ roomId, userName, isAttentive, timestamp }: { roomId: string; userName: string; isAttentive: boolean; timestamp: number }) => {
       const room = rooms.get(roomId);
-      if (!room || !room.teacherSocketId) return;
+      if (!isMember(room, socket.id) || !room.teacherSocketId) return;
       io.to(room.teacherSocketId).emit('student_attention', {
         studentId: socket.id,
         studentName: userName,
@@ -664,36 +997,104 @@ async function startServer() {
     // ─── STEP-LOCK SYSTEM ───
     socket.on('set_step', ({ roomId, step }: { roomId: string; step: number }) => {
       const room = rooms.get(roomId);
-      if (!room) return;
-      room.currentStep = step;
-      io.to(roomId).emit('step_changed', { step });
+      if (!requireTeacher(room, socket.id)) return;
+      const safeStep = Math.max(1, Math.floor(Number(step) || 1));
+      room.currentStep = safeStep;
+      const revision = bumpRevision(room);
+      io.to(roomId).emit('step_changed', { step: safeStep, revision });
+      broadcastFullState(roomId, room, 'force_sync');
     });
 
     socket.on('add_gate', ({ roomId, step, question, options, correctIndex }: { roomId: string; step: number; question: string; options: string[]; correctIndex: number }) => {
       const room = rooms.get(roomId);
-      if (!room) return;
+      if (!requireTeacher(room, socket.id)) return;
       room.gates[step] = { question, options, correctIndex };
-      io.to(roomId).emit('gate_added', { step });
+      const revision = bumpRevision(room);
+      io.to(roomId).emit('gate_added', { step, revision });
+      broadcastFullState(roomId, room, 'force_sync');
     });
 
     socket.on('gate_answer', ({ roomId, step, answerIndex, studentName }: { roomId: string; step: number; answerIndex: number; studentName: string }) => {
       const room = rooms.get(roomId);
-      if (!room) return;
+      if (!isMember(room, socket.id)) return;
       const gate = room.gates[step];
       if (!gate) { socket.emit('gate_result', { correct: false }); return; }
       const isCorrect = gate.correctIndex === answerIndex;
-      socket.emit('gate_result', { correct: isCorrect });
+
+      // ── Gamification: update XP & streaks ──
+      const name = (studentName || 'Student').trim().slice(0, 40);
+      if (!room.scores[name]) {
+        room.scores[name] = { xp: 0, streak: 0, bestStreak: 0, correct: 0, total: 0 };
+      }
+      const s = room.scores[name];
+      s.total += 1;
+      let xpGained = 0;
+      let levelUp = false;
+      if (isCorrect) {
+        s.streak += 1;
+        s.correct += 1;
+        // Base 10 XP + streak bonus (capped)
+        xpGained = 10 + Math.min(s.streak - 1, 10) * 2;
+        const oldLevel = Math.floor(s.xp / 100);
+        s.xp += xpGained;
+        const newLevel = Math.floor(s.xp / 100);
+        levelUp = newLevel > oldLevel;
+        if (s.streak > s.bestStreak) s.bestStreak = s.streak;
+      } else {
+        s.streak = 0;
+      }
+
+      socket.emit('gate_result', {
+        correct: isCorrect,
+        xpGained,
+        xp: s.xp,
+        streak: s.streak,
+        level: Math.floor(s.xp / 100) + 1,
+        levelUp,
+      });
       if (room.teacherSocketId) {
         io.to(room.teacherSocketId).emit('gate_answered', {
-          studentName, step, correct: isCorrect,
+          studentName: name, step, correct: isCorrect, xpGained, streak: s.streak, xp: s.xp,
         });
       }
+      // Broadcast leaderboard to everyone in room
+      const leaderboard = Object.entries(room.scores)
+        .map(([n, sc]) => ({ studentName: n, xp: sc.xp, streak: sc.streak, bestStreak: sc.bestStreak, correct: sc.correct, total: sc.total }))
+        .sort((a, b) => b.xp - a.xp)
+        .slice(0, 20);
+      io.to(roomId).emit('leaderboard_update', leaderboard);
+    });
+
+    // ─── HARD RESET (teacher only) ───
+    // Resets session progress but PRESERVES uploaded content (files, activeFile,
+    // lastRunHtml) so teachers don't lose their lesson material. The effect is
+    // "start from the beginning": chat cleared, steps reset, gates/scores cleared,
+    // scroll to top, unpaused.
+    socket.on('hard_reset', ({ roomId }: { roomId: string }) => {
+      const room = rooms.get(roomId);
+      if (!requireTeacher(room, socket.id)) return; // Only teacher
+      room.chat = [];
+      room.currentStep = 1;
+      room.gates = {};
+      room.isPaused = false;
+      room.scores = {};
+      updateRoomActivity(roomId);
+      io.to(roomId).emit('room_reset', {
+        // Include preserved content so clients can restore it after clearing local state
+        activeFileId: room.activeFileId,
+        files: room.files,
+        lastRunHtml: room.lastRunHtml,
+      });
+      io.to(roomId).emit('leaderboard_update', []);
+      // Also scroll everyone to top for a clean start
+      io.to(roomId).emit('reset_view');
+      console.log(`🔄 Room ${roomId}: Session reset by teacher (content preserved)`);
     });
 
     // ─── KICK USER ───
     socket.on('kick_user', ({ roomId, userId }: { roomId: string; userId: string }) => {
       const room = rooms.get(roomId);
-      if (!room || room.teacherSocketId !== socket.id) return; // Only teacher can kick
+      if (!requireTeacher(room, socket.id)) return; // Only teacher can kick
       io.to(userId).emit('kicked');
       const targetSocket = io.sockets.sockets.get(userId);
       if (targetSocket) {
@@ -754,6 +1155,10 @@ async function startServer() {
   app.use(express.json());
   app.get('/api/room/:roomId/content', (req, res) => {
     const { roomId } = req.params;
+    if (!isValidRoomId(roomId)) {
+      res.status(400).json({ error: 'Invalid room code' });
+      return;
+    }
     const room = rooms.get(roomId);
     if (!room) {
       res.status(404).json({ error: 'Room not found' });
@@ -767,6 +1172,7 @@ async function startServer() {
       html: room.lastRunHtml,
       activeFileId: room.activeFileId,
       fileName: room.files.find(f => f.id === room.activeFileId)?.name || 'Simulation',
+      revision: room.revision,
     });
   });
 
