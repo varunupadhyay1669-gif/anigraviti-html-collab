@@ -1,0 +1,1295 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta
+    name="description"
+    content="A personalized Math Vision Document for Advay, prepared for Manisha."
+  />
+  <title>Math Vision Document for Advay</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link
+    href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@500;600;700&family=Manrope:wght@400;500;600;700;800&display=swap"
+    rel="stylesheet"
+  />
+  <style>
+    :root {
+      --paper: #f6f2ea;
+      --paper-strong: #efe7d8;
+      --card: #fffdfa;
+      --ink: #17212b;
+      --muted: #56606b;
+      --line: #dfd5c5;
+      --forest: #2f6a4f;
+      --forest-soft: #e9f5ed;
+      --amber: #b67a29;
+      --amber-soft: #fff2df;
+      --copper: #c96d34;
+      --copper-soft: #fff0e7;
+      --navy: #294764;
+      --navy-soft: #ebf2f8;
+      --gold: #9f7a3e;
+      --shadow: 0 20px 50px rgba(23, 33, 43, 0.08);
+      --shadow-soft: 0 10px 24px rgba(23, 33, 43, 0.05);
+      --radius-xl: 32px;
+      --radius-lg: 24px;
+      --radius-md: 18px;
+      --radius-sm: 12px;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    html {
+      scroll-behavior: smooth;
+    }
+
+    body {
+      margin: 0;
+      font-family: "Manrope", Arial, sans-serif;
+      color: var(--ink);
+      background:
+        radial-gradient(circle at top left, rgba(201, 109, 52, 0.10), transparent 28%),
+        radial-gradient(circle at top right, rgba(41, 71, 100, 0.10), transparent 32%),
+        linear-gradient(180deg, #fcfaf6 0%, #f5f0e7 100%);
+      line-height: 1.7;
+    }
+
+    h1, h2, h3, h4 {
+      margin: 0;
+      font-family: "Cormorant Garamond", Georgia, serif;
+      color: #11202d;
+      letter-spacing: 0.01em;
+    }
+
+    p {
+      margin: 0;
+    }
+
+    .shell {
+      max-width: 1160px;
+      margin: 0 auto;
+      padding: 34px 20px 80px;
+    }
+
+    .hero,
+    .section {
+      position: relative;
+      overflow: hidden;
+      background: rgba(255, 253, 250, 0.92);
+      border: 1px solid rgba(223, 213, 197, 0.9);
+      box-shadow: var(--shadow);
+      backdrop-filter: blur(6px);
+    }
+
+    .hero {
+      border-radius: 36px;
+      padding: 64px;
+      min-height: 500px;
+      display: grid;
+      grid-template-columns: 1.35fr 0.9fr;
+      gap: 32px;
+      align-items: end;
+    }
+
+    .hero::before,
+    .hero::after,
+    .section::before {
+      content: "";
+      position: absolute;
+      border-radius: 999px;
+      pointer-events: none;
+    }
+
+    .hero::before {
+      width: 340px;
+      height: 340px;
+      right: -90px;
+      top: -120px;
+      background: radial-gradient(circle, rgba(47, 106, 79, 0.18), rgba(47, 106, 79, 0) 68%);
+    }
+
+    .hero::after {
+      width: 300px;
+      height: 300px;
+      left: -80px;
+      bottom: -130px;
+      background: radial-gradient(circle, rgba(201, 109, 52, 0.14), rgba(201, 109, 52, 0) 70%);
+    }
+
+    .section {
+      border-radius: var(--radius-xl);
+      padding: 38px;
+      margin-top: 26px;
+    }
+
+    .section::before {
+      width: 220px;
+      height: 220px;
+      top: -140px;
+      right: -100px;
+      background: radial-gradient(circle, rgba(159, 122, 62, 0.10), rgba(159, 122, 62, 0) 68%);
+    }
+
+    .eyebrow {
+      display: inline-flex;
+      align-items: center;
+      gap: 10px;
+      padding: 8px 14px;
+      border-radius: 999px;
+      background: rgba(255, 255, 255, 0.9);
+      border: 1px solid rgba(223, 213, 197, 0.95);
+      color: var(--gold);
+      font-size: 0.82rem;
+      font-weight: 800;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+    }
+
+    .hero-copy {
+      position: relative;
+      z-index: 1;
+      display: flex;
+      flex-direction: column;
+      gap: 20px;
+    }
+
+    .hero-title {
+      font-size: clamp(3.5rem, 7vw, 5.8rem);
+      line-height: 0.94;
+      max-width: 620px;
+    }
+
+    .hero-subtitle {
+      font-size: 1.15rem;
+      color: var(--muted);
+      max-width: 640px;
+    }
+
+    .brand {
+      font-size: 1rem;
+      color: #213141;
+      font-weight: 700;
+    }
+
+    .hero-side {
+      position: relative;
+      z-index: 1;
+      display: grid;
+      gap: 14px;
+    }
+
+    .snapshot,
+    .note-card,
+    .vision-box,
+    .plan-card {
+      border-radius: var(--radius-lg);
+      border: 1px solid rgba(223, 213, 197, 0.95);
+      background: rgba(255, 255, 255, 0.88);
+      box-shadow: var(--shadow-soft);
+    }
+
+    .snapshot {
+      padding: 22px;
+    }
+
+    .snapshot h3,
+    .vision-box h3,
+    .plan-card h3 {
+      font-size: 1.7rem;
+      margin-bottom: 12px;
+    }
+
+    .snapshot-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 12px;
+    }
+
+    .mini {
+      padding: 14px;
+      border-radius: 16px;
+      background: #fbf8f1;
+      border: 1px solid rgba(223, 213, 197, 0.9);
+    }
+
+    .mini-label {
+      display: block;
+      font-size: 0.72rem;
+      text-transform: uppercase;
+      letter-spacing: 0.12em;
+      color: var(--gold);
+      font-weight: 800;
+      margin-bottom: 4px;
+    }
+
+    .mini-value {
+      color: #20303f;
+      font-size: 0.98rem;
+      font-weight: 700;
+    }
+
+    .note-card {
+      padding: 20px 22px;
+      background: linear-gradient(180deg, #fffdfa 0%, #f9f4eb 100%);
+    }
+
+    .note-card p {
+      color: #31404d;
+      font-size: 0.98rem;
+    }
+
+    .section-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 18px;
+      margin-bottom: 20px;
+    }
+
+    .section-title {
+      font-size: clamp(2.2rem, 4vw, 3rem);
+      line-height: 1;
+    }
+
+    .section-kicker {
+      font-size: 0.84rem;
+      text-transform: uppercase;
+      letter-spacing: 0.12em;
+      color: var(--gold);
+      font-weight: 800;
+    }
+
+    .lead {
+      font-size: 1.08rem;
+      color: #31404d;
+    }
+
+    .lead strong {
+      color: #142433;
+    }
+
+    .two-col {
+      display: grid;
+      grid-template-columns: 1.1fr 0.9fr;
+      gap: 22px;
+      align-items: start;
+      margin-top: 20px;
+    }
+
+    .callout {
+      padding: 24px;
+      border-radius: 22px;
+      background: linear-gradient(180deg, #fffaf3 0%, #fff3e4 100%);
+      border: 1px solid rgba(201, 109, 52, 0.25);
+    }
+
+    .callout h3 {
+      font-size: 1.8rem;
+      margin-bottom: 10px;
+    }
+
+    .callout p {
+      color: #3b4a57;
+    }
+
+    .bullets {
+      display: grid;
+      gap: 14px;
+    }
+
+    .bullet {
+      display: flex;
+      gap: 12px;
+      align-items: flex-start;
+      padding: 16px 18px;
+      border-radius: 18px;
+      background: #fbf8f1;
+      border: 1px solid rgba(223, 213, 197, 0.9);
+    }
+
+    .bullet-index {
+      width: 34px;
+      height: 34px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      border-radius: 999px;
+      background: #fff;
+      color: var(--gold);
+      font-size: 0.9rem;
+      font-weight: 800;
+      border: 1px solid rgba(223, 213, 197, 0.95);
+      flex-shrink: 0;
+    }
+
+    .bullet-text strong {
+      display: block;
+      margin-bottom: 4px;
+      color: #152533;
+      font-size: 1rem;
+    }
+
+    .bullet-text span {
+      color: #4a5763;
+      font-size: 0.97rem;
+    }
+
+    .card-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 18px;
+      margin-top: 24px;
+    }
+
+    .strength-card,
+    .growth-card,
+    .approach-card {
+      padding: 24px;
+      border-radius: 24px;
+      box-shadow: var(--shadow-soft);
+    }
+
+    .strength-card {
+      background: linear-gradient(180deg, #fdfefd 0%, #f0f8f3 100%);
+      border: 1px solid rgba(47, 106, 79, 0.20);
+    }
+
+    .growth-card {
+      background: #fffdfa;
+      border: 1px solid rgba(223, 213, 197, 0.95);
+    }
+
+    .approach-card {
+      background: linear-gradient(180deg, #fffdfa 0%, #f7f9fc 100%);
+      border: 1px solid rgba(41, 71, 100, 0.14);
+    }
+
+    .card-title {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 12px;
+    }
+
+    .card-title h3 {
+      font-size: 1.85rem;
+      line-height: 1.02;
+    }
+
+    .pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 7px 12px;
+      border-radius: 999px;
+      font-size: 0.78rem;
+      font-weight: 800;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      white-space: nowrap;
+    }
+
+    .pill-green {
+      color: var(--forest);
+      background: var(--forest-soft);
+    }
+
+    .pill-yellow {
+      color: var(--amber);
+      background: var(--amber-soft);
+    }
+
+    .pill-orange {
+      color: var(--copper);
+      background: var(--copper-soft);
+    }
+
+    .pill-blue {
+      color: var(--navy);
+      background: var(--navy-soft);
+    }
+
+    .dot {
+      width: 10px;
+      height: 10px;
+      border-radius: 999px;
+      background: currentColor;
+      box-shadow: 0 0 0 5px rgba(0, 0, 0, 0.04);
+    }
+
+    .label {
+      margin-top: 16px;
+      margin-bottom: 6px;
+      font-size: 0.78rem;
+      text-transform: uppercase;
+      letter-spacing: 0.10em;
+      font-weight: 800;
+      color: var(--gold);
+    }
+
+    .strength-card p,
+    .growth-card p,
+    .approach-card p,
+    .vision-box p,
+    .plan-card p {
+      color: #3f4c58;
+      font-size: 0.98rem;
+    }
+
+    .growth-card strong,
+    .approach-card strong,
+    .strength-card strong,
+    .vision-box strong,
+    .plan-card strong {
+      color: #122232;
+    }
+
+    .timeline {
+      position: relative;
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 18px;
+      margin-top: 24px;
+    }
+
+    .timeline::before {
+      content: "";
+      position: absolute;
+      left: 70px;
+      right: 70px;
+      top: 28px;
+      height: 2px;
+      background: linear-gradient(90deg, rgba(47, 106, 79, 0.32), rgba(159, 122, 62, 0.42), rgba(41, 71, 100, 0.30));
+      z-index: 0;
+    }
+
+    .month-card {
+      position: relative;
+      z-index: 1;
+      padding: 28px 24px 24px;
+      border-radius: 26px;
+      background: #fffdfa;
+      border: 1px solid rgba(223, 213, 197, 0.95);
+      box-shadow: var(--shadow-soft);
+    }
+
+    .month-card:nth-child(1) {
+      background: linear-gradient(180deg, #fffdfa 0%, #f5fbf6 100%);
+    }
+
+    .month-card:nth-child(2) {
+      background: linear-gradient(180deg, #fffdfa 0%, #fff7ed 100%);
+    }
+
+    .month-card:nth-child(3) {
+      background: linear-gradient(180deg, #fffdfa 0%, #f2f7fc 100%);
+    }
+
+    .month-number {
+      width: 56px;
+      height: 56px;
+      margin-bottom: 18px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      border-radius: 999px;
+      border: 1px solid rgba(223, 213, 197, 0.95);
+      background: #fff;
+      color: var(--gold);
+      font-weight: 800;
+      font-size: 1.05rem;
+      box-shadow: var(--shadow-soft);
+    }
+
+    .month-card h3 {
+      font-size: 2rem;
+      margin-bottom: 6px;
+    }
+
+    .month-sub {
+      color: #3c4d59;
+      font-weight: 700;
+      margin-bottom: 14px;
+    }
+
+    .goal-list {
+      display: grid;
+      gap: 10px;
+      margin-top: 10px;
+    }
+
+    .goal {
+      padding: 12px 14px;
+      border-radius: 16px;
+      background: rgba(255, 255, 255, 0.82);
+      border: 1px solid rgba(223, 213, 197, 0.88);
+      font-size: 0.95rem;
+      color: #3f4c58;
+    }
+
+    .milestone {
+      margin-top: 18px;
+      padding: 16px 18px;
+      border-radius: 18px;
+      background: #fff;
+      border-left: 4px solid var(--gold);
+      box-shadow: inset 0 0 0 1px rgba(223, 213, 197, 0.9);
+      color: #33424f;
+      font-size: 0.97rem;
+    }
+
+    .approach-grid,
+    .vision-grid,
+    .plan-grid {
+      display: grid;
+      gap: 18px;
+      margin-top: 24px;
+    }
+
+    .approach-grid {
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+    }
+
+    .vision-grid {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .vision-box,
+    .plan-card {
+      padding: 24px;
+    }
+
+    .quote-band {
+      margin-top: 22px;
+      padding: 28px 30px;
+      border-radius: 24px;
+      background: linear-gradient(135deg, #1d3144 0%, #2f4a66 100%);
+      color: #f6f1e7;
+      box-shadow: var(--shadow);
+    }
+
+    .quote-band p {
+      font-size: 1.12rem;
+      color: rgba(246, 241, 231, 0.94);
+    }
+
+    .quote-band strong {
+      color: #ffffff;
+    }
+
+    .plan-grid {
+      grid-template-columns: 1.05fr 0.95fr;
+    }
+
+    .tag-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      margin-top: 14px;
+    }
+
+    .tag {
+      display: inline-flex;
+      align-items: center;
+      padding: 9px 14px;
+      border-radius: 999px;
+      background: #fbf8f1;
+      border: 1px solid rgba(223, 213, 197, 0.92);
+      color: #384652;
+      font-size: 0.92rem;
+      font-weight: 700;
+    }
+
+    .next-steps {
+      display: grid;
+      gap: 12px;
+      margin-top: 16px;
+    }
+
+    .step {
+      display: grid;
+      grid-template-columns: 34px 1fr;
+      gap: 12px;
+      align-items: start;
+      padding: 14px 16px;
+      border-radius: 16px;
+      background: #fbf8f1;
+      border: 1px solid rgba(223, 213, 197, 0.88);
+    }
+
+    .step-num {
+      width: 34px;
+      height: 34px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      border-radius: 999px;
+      background: #fff;
+      color: var(--gold);
+      border: 1px solid rgba(223, 213, 197, 0.95);
+      font-weight: 800;
+    }
+
+    .step strong {
+      display: block;
+      margin-bottom: 4px;
+      color: #162736;
+    }
+
+    .footer {
+      margin-top: 24px;
+      text-align: center;
+      color: #63707c;
+      font-size: 0.9rem;
+    }
+
+    .footer strong {
+      color: #22313f;
+    }
+
+    @media (max-width: 980px) {
+      .hero,
+      .two-col,
+      .card-grid,
+      .timeline,
+      .approach-grid,
+      .vision-grid,
+      .plan-grid {
+        grid-template-columns: 1fr;
+      }
+
+      .hero {
+        padding: 36px 28px;
+        min-height: auto;
+      }
+
+      .section {
+        padding: 28px 22px;
+      }
+
+      .timeline::before {
+        display: none;
+      }
+
+      .hero-title {
+        font-size: clamp(3rem, 14vw, 4.8rem);
+      }
+    }
+
+    @media print {
+      body {
+        background: #ffffff;
+      }
+
+      .shell {
+        max-width: 100%;
+        padding: 0;
+      }
+
+      .hero,
+      .section,
+      .quote-band,
+      .snapshot,
+      .note-card,
+      .vision-box,
+      .plan-card,
+      .strength-card,
+      .growth-card,
+      .approach-card,
+      .month-card {
+        box-shadow: none !important;
+        backdrop-filter: none !important;
+      }
+
+      .hero,
+      .section {
+        margin-top: 0;
+        border-radius: 0;
+      }
+
+      .section {
+        page-break-inside: avoid;
+      }
+
+      .hero::before,
+      .hero::after,
+      .section::before,
+      .timeline::before {
+        display: none;
+      }
+
+      a {
+        color: inherit;
+        text-decoration: none;
+      }
+    }
+  </style>
+</head>
+<body>
+  <main class="shell">
+    <section class="hero">
+      <div class="hero-copy">
+        <div class="eyebrow">Math Vision Document</div>
+        <div>
+          <h1 class="hero-title">Prepared for Advay</h1>
+          <p class="hero-subtitle">
+            A personalized learning roadmap for Advay's mathematical growth.
+          </p>
+        </div>
+        <p class="brand">Prepared by Varun | Concept-First Math Mentoring | 28 April 2026</p>
+      </div>
+
+      <div class="hero-side">
+        <div class="snapshot">
+          <h3>Student Snapshot</h3>
+          <div class="snapshot-grid">
+            <div class="mini">
+              <span class="mini-label">Age</span>
+              <span class="mini-value">13 years old</span>
+            </div>
+            <div class="mini">
+              <span class="mini-label">Grade Level</span>
+              <span class="mini-value">Grade 8</span>
+            </div>
+            <div class="mini">
+              <span class="mini-label">Interests</span>
+              <span class="mini-value">Math, science, soccer</span>
+            </div>
+            <div class="mini">
+              <span class="mini-label">Current Focus</span>
+              <span class="mini-value">Ratios and proportions</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="note-card">
+          <p>
+            <strong>For Manisha:</strong> this document captures what I observed in Advay during the trial,
+            the exact opportunities I would target next, and the path that can turn conceptual clarity into
+            confident performance.
+          </p>
+        </div>
+      </div>
+    </section>
+
+    <section class="section">
+      <div class="section-header">
+        <div>
+          <div class="section-kicker">Section 2</div>
+          <h2 class="section-title">&#127919; What I Discovered About Advay</h2>
+        </div>
+      </div>
+
+      <p class="lead">
+        Advay came into the lesson calm, polite, and intellectually present, even with the audio interruptions at the
+        beginning. What stood out immediately was that he did not behave like a student waiting to be told steps; he
+        behaved like a student trying to understand meaning. <strong>Advay shows a strong instinct to ask, "What does
+        this actually represent?"</strong> He defined ratio in his own words, asked a precise question about when a
+        total belongs in the denominator, and then tested the idea by building his own example of bikes and cars.
+      </p>
+
+      <div class="two-col">
+        <div class="callout">
+          <h3>I truly saw a thinker here.</h3>
+          <p>
+            The strongest signal from this trial was not just that Advay got correct answers. It was that he
+            consistently tried to connect symbols, language, and real situations. When proportional reasoning was new,
+            he looked for the logic behind the school method. Once that logic clicked, he quickly found the unit rate
+            and solved the full distance problem correctly. That is the profile of a student who can grow fast with the
+            right kind of coaching.
+          </p>
+        </div>
+
+        <div class="bullets">
+          <div class="bullet">
+            <div class="bullet-index">1</div>
+            <div class="bullet-text">
+              <strong>He engages conceptually.</strong>
+              <span>Advay did not just accept notation; he challenged it until it made sense.</span>
+            </div>
+          </div>
+          <div class="bullet">
+            <div class="bullet-index">2</div>
+            <div class="bullet-text">
+              <strong>He responds well to real examples.</strong>
+              <span>Sports, recipes, and visuals helped him lock ideas in quickly.</span>
+            </div>
+          </div>
+          <div class="bullet">
+            <div class="bullet-index">3</div>
+            <div class="bullet-text">
+              <strong>He is attentive and coachable.</strong>
+              <span>Even when unsure, he stayed in the problem and was willing to explain his thinking.</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="section">
+      <div class="section-header">
+        <div>
+          <div class="section-kicker">Section 3</div>
+          <h2 class="section-title">&#128170; Superpowers</h2>
+        </div>
+      </div>
+
+      <div class="card-grid">
+        <article class="strength-card">
+          <div class="card-title">
+            <span class="pill pill-green"><span class="dot"></span>Strength 01</span>
+            <h3>Concept-First Thinking</h3>
+          </div>
+          <p>
+            <strong>What I observed:</strong> Advay defined ratio as one quantity compared to another before I fully
+            taught the topic, and later restated the ratio-to-fraction idea in his own words.
+          </p>
+          <p class="label">What it means</p>
+          <p>
+            He is not limited to copying procedures. He is ready to understand the structure beneath them.
+          </p>
+          <p class="label">How we build on it</p>
+          <p>
+            I will regularly ask Advay to name what is being compared before we calculate anything. This turns
+            understanding into a habit.
+          </p>
+        </article>
+
+        <article class="strength-card">
+          <div class="card-title">
+            <span class="pill pill-green"><span class="dot"></span>Strength 02</span>
+            <h3>Strong Mathematical Voice</h3>
+          </div>
+          <p>
+            <strong>What I observed:</strong> Advay surfaced a thoughtful question about whether the denominator is the
+            total, and he volunteered his own 4:1 bikes-to-cars example.
+          </p>
+          <p class="label">What it means</p>
+          <p>
+            He is willing to reveal partial understanding instead of hiding confusion. That is one of the most valuable
+            traits a student can have.
+          </p>
+          <p class="label">How we build on it</p>
+          <p>
+            I will use short explanation routines so Advay can keep strengthening the language side of mathematics while
+            solving.
+          </p>
+        </article>
+
+        <article class="strength-card">
+          <div class="card-title">
+            <span class="pill pill-green"><span class="dot"></span>Strength 03</span>
+            <h3>Pattern Spotting and Simplification</h3>
+          </div>
+          <p>
+            <strong>What I observed:</strong> In the ratio word problems, Advay correctly totaled parts, formed the
+            right fraction, and simplified results such as 6/14 to 3/7.
+          </p>
+          <p class="label">What it means</p>
+          <p>
+            Once the structure is visible, he can move efficiently. This is a strong foundation for fractions,
+            percentages, and algebraic reasoning later on.
+          </p>
+          <p class="label">How we build on it</p>
+          <p>
+            We will connect ratios, fractions, and percentages in the same problem sets so Advay learns to see one
+            idea through multiple lenses.
+          </p>
+        </article>
+
+        <article class="strength-card">
+          <div class="card-title">
+            <span class="pill pill-green"><span class="dot"></span>Strength 04</span>
+            <h3>An Unusually Strong Sense of Mathematical Language</h3>
+          </div>
+          <p>
+            <strong>What I observed:</strong> Advay cared about what the notation meant, not just how to manipulate it.
+            He also responded quickly when the idea of keeping the relationship constant while scaling was made visual.
+          </p>
+          <p class="label">What it means</p>
+          <p>
+            This is a surprisingly mature instinct for a middle school learner. Students with this instinct often do
+            especially well once proportional reasoning becomes more abstract.
+          </p>
+          <p class="label">How we build on it</p>
+          <p>
+            I would introduce double number lines, scale factors, and comparison language early so his natural sense of
+            structure becomes a real advantage.
+          </p>
+        </article>
+      </div>
+    </section>
+
+    <section class="section">
+      <div class="section-header">
+        <div>
+          <div class="section-kicker">Section 4</div>
+          <h2 class="section-title">&#128269; Growth Map</h2>
+        </div>
+      </div>
+
+      <div class="card-grid">
+        <article class="growth-card">
+          <div class="card-title">
+            <span class="pill pill-orange"><span class="dot"></span>&#128992; Priority Opportunity</span>
+            <h3>Separate Ratio Notation from Fraction Notation</h3>
+          </div>
+          <p>
+            <strong>What I observed:</strong> Advay asked an excellent question about whether the denominator is the
+            total when ratio is written in a fraction-like way.
+          </p>
+          <p class="label">Root cause</p>
+          <p>
+            He has likely been exposed to part-to-part and part-to-whole representations close together, but without a
+            fully secure distinction between what each form is naming.
+          </p>
+          <p class="label">How I would fix it</p>
+          <p>
+            I would use color-coded bar models and a repeatable translation routine: ratio form, part-to-whole form,
+            then full sentence meaning.
+          </p>
+          <p class="label">Expected timeline</p>
+          <p>
+            2 to 3 weeks for strong clarity, with reinforcement through mixed practice afterward.
+          </p>
+        </article>
+
+        <article class="growth-card">
+          <div class="card-title">
+            <span class="pill pill-orange"><span class="dot"></span>&#128992; Priority Opportunity</span>
+            <h3>Make Proportional Reasoning Automatic Across Methods</h3>
+          </div>
+          <p>
+            <strong>What I observed:</strong> Advay could solve the miles-per-hour problem once unit rate was explained,
+            but he initially referenced the table method used in class because that framework felt more familiar.
+          </p>
+          <p class="label">Root cause</p>
+          <p>
+            The procedure is partially available, but the invariant relationship is not yet fluent across tables,
+            equations, and verbal reasoning.
+          </p>
+          <p class="label">How I would fix it</p>
+          <p>
+            I would teach one idea through three models side by side: unitary method, ratio table, and double number
+            line, until Advay can choose the method himself.
+          </p>
+          <p class="label">Expected timeline</p>
+          <p>
+            4 to 6 weeks for genuine confidence and transfer into school assignments.
+          </p>
+        </article>
+
+        <article class="growth-card">
+          <div class="card-title">
+            <span class="pill pill-yellow"><span class="dot"></span>&#128993; Needs Attention</span>
+            <h3>Increase Accuracy Under Multi-Step Load</h3>
+          </div>
+          <p>
+            <strong>What I observed:</strong> In a multi-part paint question, there was a brief moment of total-tracking
+            hesitation before he settled back into the structure.
+          </p>
+          <p class="label">Root cause</p>
+          <p>
+            This does not read like weak understanding. It reads like working-memory overload when several quantities
+            are live at once.
+          </p>
+          <p class="label">How I would fix it</p>
+          <p>
+            I would teach a compact annotation routine: label parts, total once, estimate first, then simplify. That
+            reduces mental clutter and protects accuracy.
+          </p>
+          <p class="label">Expected timeline</p>
+          <p>
+            3 to 5 weeks to see noticeably cleaner written setup and fewer avoidable slips.
+          </p>
+        </article>
+
+        <article class="growth-card">
+          <div class="card-title">
+            <span class="pill pill-yellow"><span class="dot"></span>&#128993; Needs Attention</span>
+            <h3>Turn Caution into Confident Commitment</h3>
+          </div>
+          <p>
+            <strong>What I observed:</strong> Advay often reached the right answer, but occasionally looked for
+            confirmation before fully trusting it.
+          </p>
+          <p class="label">Root cause</p>
+          <p>
+            This is common in bright students who care about being correct. They understand more than they believe they
+            do.
+          </p>
+          <p class="label">How I would fix it</p>
+          <p>
+            I would include short confidence checks, error analysis, and "defend your answer" routines so correctness is
+            linked with ownership, not guesswork.
+          </p>
+          <p class="label">Expected timeline</p>
+          <p>
+            4 to 8 weeks for stronger independence and faster decision-making under light pressure.
+          </p>
+        </article>
+      </div>
+    </section>
+
+    <section class="section">
+      <div class="section-header">
+        <div>
+          <div class="section-kicker">Section 5</div>
+          <h2 class="section-title">&#128506; The 3-Month Roadmap</h2>
+        </div>
+      </div>
+
+      <div class="timeline">
+        <article class="month-card">
+          <div class="month-number">Month 1</div>
+          <h3>Foundation</h3>
+          <p class="month-sub">We build clarity before speed.</p>
+          <div class="goal-list">
+            <div class="goal"><strong>Goal:</strong> Secure part-to-part versus part-to-whole understanding.</div>
+            <div class="goal"><strong>Goal:</strong> Translate comfortably between ratio notation, fractions, and visual models.</div>
+            <div class="goal"><strong>Method:</strong> Soccer examples, recipes, bar models, and guided explanation routines.</div>
+            <div class="goal"><strong>Expected outcome:</strong> Advay understands what each number means before computing.</div>
+          </div>
+          <div class="milestone">
+            <strong>By Week 4:</strong> Advay should be able to convert ratios into correct part-to-whole fractions,
+            explain why the denominator is the total, and solve straightforward unit-rate questions without prompting.
+          </div>
+        </article>
+
+        <article class="month-card">
+          <div class="month-number">Month 2</div>
+          <h3>Application</h3>
+          <p class="month-sub">We make the ideas flexible and usable.</p>
+          <div class="goal-list">
+            <div class="goal"><strong>Goal:</strong> Solve multi-step school questions in unfamiliar contexts.</div>
+            <div class="goal"><strong>Goal:</strong> Move between class tables, unitary method, and scale-factor thinking.</div>
+            <div class="goal"><strong>Method:</strong> Worked-example fading, mixed problem sets, and targeted correction of small slips.</div>
+            <div class="goal"><strong>Expected outcome:</strong> Advay can explain not only how he solved, but why that method fits.</div>
+          </div>
+          <div class="milestone">
+            <strong>By Week 8:</strong> Advay should independently solve most ratio and proportion homework questions
+            with accurate setup, cleaner totals, and a visible strategy.
+          </div>
+        </article>
+
+        <article class="month-card">
+          <div class="month-number">Month 3</div>
+          <h3>Mastery</h3>
+          <p class="month-sub">We convert competence into confidence.</p>
+          <div class="goal-list">
+            <div class="goal"><strong>Goal:</strong> Handle missing-value proportions, comparison problems, and challenge questions.</div>
+            <div class="goal"><strong>Goal:</strong> Build speed without losing conceptual control.</div>
+            <div class="goal"><strong>Method:</strong> Spiral review, timed confidence rounds, and early contest-style extensions.</div>
+            <div class="goal"><strong>Expected outcome:</strong> School work feels lighter and higher-order problems feel possible.</div>
+          </div>
+          <div class="milestone">
+            <strong>By Week 12:</strong> Advay should be able to choose a method independently, justify his reasoning
+            clearly, and solve grade-level proportional reasoning with confidence and consistency.
+          </div>
+        </article>
+      </div>
+    </section>
+
+    <section class="section">
+      <div class="section-header">
+        <div>
+          <div class="section-kicker">Section 6</div>
+          <h2 class="section-title">&#129504; My Approach for Advay</h2>
+        </div>
+      </div>
+
+      <p class="lead">
+        Advay learns best when a concept is made visible, connected to real meaning, and then handed back to him to
+        explain. That is why my approach for him would be highly personalized, structured, and interactive rather than
+        worksheet-heavy from the start.
+      </p>
+
+      <div class="approach-grid">
+        <article class="approach-card">
+          <div class="card-title">
+            <span class="pill pill-blue"><span class="dot"></span>Method 01</span>
+            <h3>Visual Models and Simulations</h3>
+          </div>
+          <p>
+            <strong>Why it fits Advay:</strong> he explicitly said the visuals were helpful, and he responded quickly to
+            examples built around fans, recipes, and scaling.
+          </p>
+          <p class="label">What this looks like</p>
+          <p>
+            Bar models, double number lines, ratio tables, and interactive representations that show why the
+            relationship stays constant.
+          </p>
+          <p class="label">Research support</p>
+          <p>
+            Dual-coding and concrete-representational-abstract instruction improve conceptual understanding by linking
+            symbols to visual structure.
+          </p>
+        </article>
+
+        <article class="approach-card">
+          <div class="card-title">
+            <span class="pill pill-blue"><span class="dot"></span>Method 02</span>
+            <h3>Guided Self-Explanation</h3>
+          </div>
+          <p>
+            <strong>Why it fits Advay:</strong> some of his best moments came when he restated ideas and asked for
+            precision about meaning, not just answers.
+          </p>
+          <p class="label">What this looks like</p>
+          <p>
+            Frequent prompts such as "What is being compared?", "What does the whole mean here?", and "Why does this
+            method work?"
+          </p>
+          <p class="label">Research support</p>
+          <p>
+            Self-explanation strengthens transfer and helps students expose misconceptions early enough to repair them.
+          </p>
+        </article>
+
+        <article class="approach-card">
+          <div class="card-title">
+            <span class="pill pill-blue"><span class="dot"></span>Method 03</span>
+            <h3>Gradual Release with Retrieval</h3>
+          </div>
+          <p>
+            <strong>Why it fits Advay:</strong> he needs both conceptual grounding and enough repetition to trust his
+            own reasoning under pressure.
+          </p>
+          <p class="label">What this looks like</p>
+          <p>
+            Short recap drills, mixed question sets, confidence checks, and progressively harder problems once the
+            foundation is stable.
+          </p>
+          <p class="label">Research support</p>
+          <p>
+            Retrieval practice and interleaving produce stronger long-term retention than repeating one narrow task type
+            in isolation.
+          </p>
+        </article>
+      </div>
+    </section>
+
+    <section class="section">
+      <div class="section-header">
+        <div>
+          <div class="section-kicker">Section 7</div>
+          <h2 class="section-title">&#128200; Where This Leads</h2>
+        </div>
+      </div>
+
+      <div class="vision-grid">
+        <article class="vision-box">
+          <span class="pill pill-green"><span class="dot"></span>6-Month Vision</span>
+          <h3>Confidence With Real Mathematical Structure</h3>
+          <p>
+            Over six months, Advay can become the kind of student who no longer sees ratios, rates, fractions,
+            percentages, and proportions as separate school topics. Instead, he will start to recognize them as
+            connected ideas. That shift usually leads to cleaner homework, better test performance, and much less
+            hesitation with word problems.
+          </p>
+        </article>
+
+        <article class="vision-box">
+          <span class="pill pill-blue"><span class="dot"></span>12-Month Vision</span>
+          <h3>At or Above Grade-Level Reasoning</h3>
+          <p>
+            With steady work, Advay can be operating comfortably at or above grade-level expectations in proportional
+            reasoning and early algebra readiness. More importantly, he can start approaching unfamiliar questions with
+            a method, a calm mindset, and stronger mathematical independence.
+          </p>
+        </article>
+      </div>
+
+      <div class="quote-band">
+        <p>
+          This matters not only for <strong>school marks</strong>, but for <strong>confidence</strong>, higher-level
+          problem solving, and even future competition readiness. Advay does not come across as a child who needs to be
+          pushed into math. He comes across as a child with real potential who needs his reasoning sharpened, organized,
+          and given the right runway.
+        </p>
+      </div>
+    </section>
+
+    <section class="section">
+      <div class="section-header">
+        <div>
+          <div class="section-kicker">Section 8</div>
+          <h2 class="section-title">&#128203; Recommended Plan</h2>
+        </div>
+      </div>
+
+      <div class="plan-grid">
+        <article class="plan-card">
+          <h3>Recommended Structure</h3>
+          <p>
+            <strong>2 sessions per week, 60 minutes each</strong> is the right cadence for Advay right now. One session
+            keeps the concepts clean and connected. The second session turns that understanding into accuracy, speed,
+            and retention before the next school task arrives.
+          </p>
+
+          <div class="tag-row">
+            <span class="tag">10 min retrieval warm-up</span>
+            <span class="tag">20 min concept teaching</span>
+            <span class="tag">20 min guided application</span>
+            <span class="tag">10 min recap and homework setup</span>
+          </div>
+
+          <p class="label">Why this works</p>
+          <p>
+            Advay does not need endless drilling. He needs high-quality repetition around the right concepts, with room
+            to verbalize and refine his thinking.
+          </p>
+
+          <p class="label">What parents can do at home</p>
+          <p>
+            1. Ask Advay to explain one solved problem aloud each week.<br />
+            2. Keep homework short but regular rather than long and inconsistent.<br />
+            3. Notice ratios and rates in real life: recipes, sports statistics, travel speed, and discounts.
+          </p>
+        </article>
+
+        <article class="plan-card">
+          <h3>Getting Started</h3>
+          <p>
+            The best time to start is while this unit is still active and before confusion hardens into habit.
+          </p>
+
+          <div class="next-steps">
+            <div class="step">
+              <div class="step-num">1</div>
+              <div>
+                <strong>Begin after the school trip</strong>
+                Share the next worksheet or current school chapter so the first session is immediately relevant.
+              </div>
+            </div>
+            <div class="step">
+              <div class="step-num">2</div>
+              <div>
+                <strong>Start with a short diagnostic lesson</strong>
+                We confirm the ratio and proportion baseline, then identify whether fractions or arithmetic fluency need
+                parallel support.
+              </div>
+            </div>
+            <div class="step">
+              <div class="step-num">3</div>
+              <div>
+                <strong>Launch the 12-week roadmap</strong>
+                Week 1 focuses on notation clarity and part-to-whole reasoning so Advay experiences an early win.
+              </div>
+            </div>
+          </div>
+        </article>
+      </div>
+    </section>
+
+    <p class="footer">
+      Prepared for <strong>Advay</strong> and shared with <strong>Manisha</strong> as a personalized vision for his
+      mathematical growth.
+    </p>
+  </main>
+</body>
+</html>

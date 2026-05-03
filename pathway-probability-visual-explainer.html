@@ -1,0 +1,1411 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta
+    name="description"
+    content="A visual-first HTML explainer for a pathways probability question, designed to spend most of the time helping the student understand the question before solving it."
+  />
+  <title>Pathway Probability Visual Explainer</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link
+    href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,600;9..144,700&family=Manrope:wght@400;500;600;700;800&display=swap"
+    rel="stylesheet"
+  />
+  <style>
+    :root {
+      --paper: #f6f0e6;
+      --paper-strong: #ede1d0;
+      --card: rgba(255, 251, 245, 0.92);
+      --card-strong: #fffdf9;
+      --ink: #1d2430;
+      --muted: #5f6873;
+      --line: rgba(98, 76, 53, 0.16);
+      --shadow: 0 26px 60px rgba(34, 31, 28, 0.1);
+      --shadow-soft: 0 14px 28px rgba(34, 31, 28, 0.07);
+      --teal: #1f6d6a;
+      --teal-soft: #e2f1ef;
+      --amber: #af6d2c;
+      --amber-soft: #fff0df;
+      --berry: #86425e;
+      --berry-soft: #f7e8f0;
+      --slate: #35516d;
+      --slate-soft: #e9f0f6;
+      --mint: #dff0e5;
+      --coral: #de7c63;
+      --success: #2d7c4d;
+      --danger: #b74b4b;
+      --radius-xl: 34px;
+      --radius-lg: 26px;
+      --radius-md: 18px;
+      --radius-sm: 12px;
+      --route-a: #c56d31;
+      --route-b: #1d7a72;
+      --route-c: #7a4f8e;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    html {
+      scroll-behavior: smooth;
+    }
+
+    body {
+      margin: 0;
+      font-family: "Manrope", Arial, sans-serif;
+      color: var(--ink);
+      background:
+        radial-gradient(circle at top left, rgba(134, 66, 94, 0.12), transparent 26%),
+        radial-gradient(circle at top right, rgba(31, 109, 106, 0.12), transparent 30%),
+        linear-gradient(180deg, #fbf8f2 0%, #f3eadc 100%);
+      line-height: 1.7;
+    }
+
+    h1,
+    h2,
+    h3,
+    h4 {
+      margin: 0;
+      font-family: "Fraunces", Georgia, serif;
+      letter-spacing: 0.01em;
+      line-height: 1.05;
+    }
+
+    p {
+      margin: 0;
+    }
+
+    button {
+      font: inherit;
+      cursor: pointer;
+    }
+
+    .page {
+      max-width: 1220px;
+      margin: 0 auto;
+      padding: 30px 20px 90px;
+    }
+
+    .topbar {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: space-between;
+      align-items: center;
+      gap: 16px;
+      margin-bottom: 18px;
+    }
+
+    .brand {
+      display: inline-flex;
+      align-items: center;
+      gap: 10px;
+      font-size: 0.92rem;
+      font-weight: 800;
+      letter-spacing: 0.14em;
+      text-transform: uppercase;
+      color: #394553;
+    }
+
+    .brand-dot {
+      width: 12px;
+      height: 12px;
+      border-radius: 999px;
+      background: linear-gradient(135deg, var(--teal), var(--amber));
+      box-shadow: 0 0 0 8px rgba(31, 109, 106, 0.08);
+    }
+
+    .nav-pills {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+    }
+
+    .nav-pills a {
+      text-decoration: none;
+      color: #30404f;
+      font-weight: 700;
+      font-size: 0.92rem;
+      padding: 10px 16px;
+      border-radius: 999px;
+      border: 1px solid rgba(48, 64, 79, 0.12);
+      background: rgba(255, 255, 255, 0.72);
+      box-shadow: var(--shadow-soft);
+    }
+
+    .hero,
+    .section {
+      position: relative;
+      overflow: hidden;
+      border: 1px solid var(--line);
+      background: var(--card);
+      box-shadow: var(--shadow);
+      backdrop-filter: blur(10px);
+    }
+
+    .hero {
+      border-radius: 40px;
+      padding: 54px;
+      display: grid;
+      grid-template-columns: 1.2fr 0.95fr;
+      gap: 30px;
+      align-items: stretch;
+    }
+
+    .hero::before,
+    .hero::after,
+    .section::before {
+      content: "";
+      position: absolute;
+      border-radius: 999px;
+      pointer-events: none;
+    }
+
+    .hero::before {
+      width: 340px;
+      height: 340px;
+      top: -160px;
+      right: -120px;
+      background: radial-gradient(circle, rgba(31, 109, 106, 0.18), rgba(31, 109, 106, 0) 72%);
+    }
+
+    .hero::after {
+      width: 360px;
+      height: 360px;
+      bottom: -200px;
+      left: -130px;
+      background: radial-gradient(circle, rgba(175, 109, 44, 0.16), rgba(175, 109, 44, 0) 74%);
+    }
+
+    .section {
+      border-radius: var(--radius-xl);
+      padding: 34px;
+      margin-top: 24px;
+    }
+
+    .section::before {
+      width: 220px;
+      height: 220px;
+      top: -130px;
+      right: -90px;
+      background: radial-gradient(circle, rgba(134, 66, 94, 0.1), rgba(134, 66, 94, 0) 70%);
+    }
+
+    .eyebrow {
+      display: inline-flex;
+      align-items: center;
+      gap: 10px;
+      padding: 8px 14px;
+      border-radius: 999px;
+      background: rgba(255, 255, 255, 0.9);
+      border: 1px solid rgba(57, 69, 83, 0.14);
+      font-size: 0.8rem;
+      font-weight: 800;
+      letter-spacing: 0.16em;
+      text-transform: uppercase;
+      color: var(--amber);
+    }
+
+    .hero-copy,
+    .problem-card,
+    .content-stack,
+    .card {
+      position: relative;
+      z-index: 1;
+    }
+
+    .hero-copy {
+      display: flex;
+      flex-direction: column;
+      gap: 22px;
+    }
+
+    .hero-title {
+      font-size: clamp(3.3rem, 7vw, 5.6rem);
+      max-width: 680px;
+    }
+
+    .hero-lead {
+      max-width: 620px;
+      font-size: 1.08rem;
+      color: var(--muted);
+    }
+
+    .hero-note {
+      display: inline-flex;
+      flex-wrap: wrap;
+      gap: 10px;
+    }
+
+    .tag {
+      padding: 10px 14px;
+      border-radius: 999px;
+      font-size: 0.9rem;
+      font-weight: 700;
+      border: 1px solid rgba(57, 69, 83, 0.12);
+      background: rgba(255, 255, 255, 0.84);
+      color: #334151;
+    }
+
+    .problem-card,
+    .card {
+      border-radius: var(--radius-lg);
+      border: 1px solid rgba(57, 69, 83, 0.12);
+      background: rgba(255, 255, 255, 0.88);
+      box-shadow: var(--shadow-soft);
+    }
+
+    .problem-card {
+      padding: 24px;
+      display: flex;
+      flex-direction: column;
+      gap: 18px;
+    }
+
+    .problem-card h2 {
+      font-size: 1.8rem;
+    }
+
+    .problem-statement {
+      font-size: 1.03rem;
+      color: #273240;
+    }
+
+    .translation {
+      display: grid;
+      gap: 10px;
+      padding: 16px 18px;
+      border-radius: 20px;
+      background: linear-gradient(135deg, rgba(31, 109, 106, 0.08), rgba(175, 109, 44, 0.08));
+      border: 1px dashed rgba(57, 69, 83, 0.16);
+    }
+
+    .translation strong {
+      font-size: 0.92rem;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: var(--teal);
+    }
+
+    .section-header {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: space-between;
+      gap: 18px;
+      align-items: end;
+      margin-bottom: 24px;
+    }
+
+    .section-title {
+      font-size: clamp(2.1rem, 4vw, 3.4rem);
+      max-width: 720px;
+    }
+
+    .section-lead {
+      max-width: 540px;
+      color: var(--muted);
+      font-size: 1rem;
+    }
+
+    .grid-two {
+      display: grid;
+      grid-template-columns: 1.02fr 0.98fr;
+      gap: 22px;
+    }
+
+    .content-stack {
+      display: grid;
+      gap: 18px;
+    }
+
+    .card {
+      padding: 24px;
+    }
+
+    .card h3 {
+      font-size: 1.6rem;
+      margin-bottom: 14px;
+    }
+
+    .card h4 {
+      font-size: 1.2rem;
+      margin-bottom: 10px;
+    }
+
+    .check-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 12px;
+      margin-top: 14px;
+    }
+
+    .mini-card {
+      padding: 14px;
+      border-radius: 18px;
+      border: 1px solid rgba(57, 69, 83, 0.12);
+      background: #fcfaf6;
+    }
+
+    .mini-card strong {
+      display: block;
+      margin-bottom: 6px;
+      color: #243342;
+    }
+
+    .mini-card p {
+      color: var(--muted);
+      font-size: 0.95rem;
+    }
+
+    .decoder {
+      display: grid;
+      gap: 12px;
+      margin-top: 16px;
+    }
+
+    .decoder-step {
+      display: grid;
+      grid-template-columns: 54px 1fr;
+      gap: 14px;
+      align-items: start;
+      padding: 14px;
+      border-radius: 18px;
+      background: linear-gradient(135deg, rgba(255, 255, 255, 0.96), rgba(241, 234, 223, 0.76));
+      border: 1px solid rgba(57, 69, 83, 0.1);
+    }
+
+    .step-badge {
+      width: 54px;
+      height: 54px;
+      border-radius: 18px;
+      display: grid;
+      place-items: center;
+      font-size: 1rem;
+      font-weight: 800;
+      color: white;
+      background: linear-gradient(135deg, var(--amber), #c68a47);
+      box-shadow: inset 0 -10px 20px rgba(0, 0, 0, 0.08);
+    }
+
+    .decoder-step strong {
+      display: block;
+      margin-bottom: 4px;
+      font-size: 1rem;
+      color: #243342;
+    }
+
+    .decoder-step p {
+      color: var(--muted);
+      font-size: 0.95rem;
+    }
+
+    .mindmap-shell {
+      padding: 10px;
+      border-radius: 26px;
+      background: linear-gradient(135deg, rgba(255, 255, 255, 0.98), rgba(247, 241, 233, 0.94));
+      border: 1px solid rgba(57, 69, 83, 0.1);
+    }
+
+    .mindmap-shell svg {
+      width: 100%;
+      height: auto;
+      display: block;
+    }
+
+    .visual-grid {
+      display: grid;
+      grid-template-columns: 1.12fr 0.88fr;
+      gap: 22px;
+    }
+
+    .network-shell {
+      overflow: hidden;
+    }
+
+    .network-caption {
+      margin-top: 16px;
+      display: grid;
+      gap: 12px;
+    }
+
+    .button-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+    }
+
+    .route-btn {
+      padding: 10px 14px;
+      border-radius: 999px;
+      border: 1px solid rgba(57, 69, 83, 0.12);
+      background: white;
+      color: #2a3745;
+      font-weight: 700;
+      transition: transform 0.2s ease, background 0.2s ease, color 0.2s ease;
+    }
+
+    .route-btn:hover,
+    .route-btn:focus-visible {
+      transform: translateY(-2px);
+    }
+
+    .route-btn.active {
+      color: white;
+      background: #2b3d4f;
+      border-color: #2b3d4f;
+    }
+
+    .route-note {
+      padding: 16px 18px;
+      border-radius: 20px;
+      background: #fbf7f0;
+      border: 1px solid rgba(57, 69, 83, 0.1);
+    }
+
+    .route-note strong {
+      display: block;
+      margin-bottom: 6px;
+      color: #243342;
+    }
+
+    .network {
+      width: 100%;
+      height: auto;
+      display: block;
+    }
+
+    .network .base {
+      stroke: #adb6c1;
+      stroke-width: 8;
+      fill: none;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+    }
+
+    .network .route {
+      fill: none;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+      stroke-width: 10;
+      opacity: 0;
+      transition: opacity 0.35s ease;
+    }
+
+    .network .route.family-a {
+      stroke: var(--route-a);
+    }
+
+    .network .route.family-b {
+      stroke: var(--route-b);
+    }
+
+    .network .route.family-c {
+      stroke: var(--route-c);
+    }
+
+    .network[data-focus="all"] .route {
+      opacity: 0.34;
+    }
+
+    .network[data-focus="a"] .route.family-a,
+    .network[data-focus="b"] .route.family-b,
+    .network[data-focus="c"] .route.family-c {
+      opacity: 0.92;
+    }
+
+    .network[data-focus="a"] .route:not(.family-a),
+    .network[data-focus="b"] .route:not(.family-b),
+    .network[data-focus="c"] .route:not(.family-c) {
+      opacity: 0.08;
+    }
+
+    .node {
+      fill: white;
+      stroke: #60748b;
+      stroke-width: 2.5;
+    }
+
+    .node-label,
+    .bin-label,
+    .split-label {
+      font-family: "Manrope", Arial, sans-serif;
+      font-weight: 800;
+      fill: #2a3542;
+    }
+
+    .split-label {
+      font-size: 13px;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+    }
+
+    .node-label {
+      font-size: 15px;
+    }
+
+    .bin {
+      fill: #fdf8f2;
+      stroke: #586778;
+      stroke-width: 2;
+      rx: 14;
+      ry: 14;
+    }
+
+    .bin-label {
+      font-size: 18px;
+    }
+
+    .highlight-grid {
+      display: grid;
+      gap: 16px;
+    }
+
+    .highlight-card {
+      padding: 18px;
+      border-radius: 22px;
+      border: 1px solid rgba(57, 69, 83, 0.1);
+      background: linear-gradient(135deg, rgba(255, 255, 255, 0.98), rgba(245, 239, 230, 0.94));
+    }
+
+    .highlight-card p + p {
+      margin-top: 10px;
+    }
+
+    .pill-list {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      margin-top: 14px;
+    }
+
+    .pill {
+      padding: 9px 12px;
+      border-radius: 999px;
+      font-size: 0.9rem;
+      font-weight: 700;
+      color: #2a3745;
+      background: white;
+      border: 1px solid rgba(57, 69, 83, 0.1);
+    }
+
+    .compare-grid {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 10px;
+      margin-top: 18px;
+    }
+
+    .compare-cell {
+      padding: 14px 10px;
+      border-radius: 16px;
+      text-align: center;
+      font-weight: 800;
+      border: 1px solid rgba(57, 69, 83, 0.1);
+      background: white;
+      color: #2a3745;
+    }
+
+    .compare-cell.same {
+      background: #fff0ed;
+      border-color: rgba(183, 75, 75, 0.24);
+      color: var(--danger);
+    }
+
+    .compare-cell.diff {
+      background: #eef9f1;
+      border-color: rgba(45, 124, 77, 0.24);
+      color: var(--success);
+    }
+
+    .compare-legend {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 12px;
+      margin-top: 14px;
+      color: var(--muted);
+      font-size: 0.95rem;
+    }
+
+    .legend-key {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .legend-dot {
+      width: 14px;
+      height: 14px;
+      border-radius: 999px;
+    }
+
+    .legend-dot.same {
+      background: #f7c9bf;
+    }
+
+    .legend-dot.diff {
+      background: #cdebd7;
+    }
+
+    .solution-shell {
+      display: grid;
+      gap: 20px;
+    }
+
+    .probability-strip {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 14px;
+    }
+
+    .prob-card {
+      padding: 18px;
+      border-radius: 22px;
+      border: 1px solid rgba(57, 69, 83, 0.12);
+      background: linear-gradient(135deg, rgba(255, 255, 255, 0.98), rgba(250, 246, 240, 0.98));
+    }
+
+    .prob-card strong {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 10px;
+      color: #243342;
+      font-size: 1rem;
+    }
+
+    .prob-card p {
+      color: var(--muted);
+      font-size: 0.95rem;
+    }
+
+    .dot {
+      width: 12px;
+      height: 12px;
+      border-radius: 999px;
+    }
+
+    .dot.a {
+      background: var(--route-a);
+    }
+
+    .dot.b {
+      background: var(--route-b);
+    }
+
+    .dot.c {
+      background: var(--route-c);
+    }
+
+    .bar {
+      height: 10px;
+      margin-top: 12px;
+      border-radius: 999px;
+      background: #eee5d8;
+      overflow: hidden;
+    }
+
+    .bar > span {
+      display: block;
+      height: 100%;
+      border-radius: 999px;
+    }
+
+    .bar.a > span {
+      width: 12.5%;
+      background: linear-gradient(90deg, #d58a53, var(--route-a));
+    }
+
+    .bar.b > span {
+      width: 62.5%;
+      background: linear-gradient(90deg, #31a09a, var(--route-b));
+    }
+
+    .bar.c > span {
+      width: 25%;
+      background: linear-gradient(90deg, #9a6ab0, var(--route-c));
+    }
+
+    .equation-card {
+      padding: 24px;
+      border-radius: 26px;
+      background: linear-gradient(135deg, rgba(29, 122, 114, 0.1), rgba(175, 109, 44, 0.08));
+      border: 1px solid rgba(57, 69, 83, 0.1);
+    }
+
+    .equation-card h3 {
+      font-size: 1.8rem;
+      margin-bottom: 12px;
+    }
+
+    .math-line {
+      font-size: clamp(1.14rem, 2.3vw, 1.45rem);
+      font-weight: 700;
+      color: #21303f;
+      margin-top: 10px;
+    }
+
+    .final-answer {
+      display: inline-flex;
+      align-items: center;
+      gap: 16px;
+      margin-top: 18px;
+      padding: 18px 20px;
+      border-radius: 22px;
+      background: white;
+      border: 1px solid rgba(57, 69, 83, 0.12);
+      box-shadow: var(--shadow-soft);
+    }
+
+    .answer-badge {
+      display: grid;
+      place-items: center;
+      min-width: 74px;
+      min-height: 74px;
+      border-radius: 22px;
+      background: linear-gradient(135deg, var(--amber), #d2944a);
+      color: white;
+      font-size: 1.4rem;
+      font-weight: 800;
+    }
+
+    .answer-copy strong {
+      display: block;
+      font-size: 1.18rem;
+      color: #22303d;
+      margin-bottom: 4px;
+    }
+
+    .frac {
+      display: inline-grid;
+      grid-template-rows: auto auto;
+      align-items: center;
+      justify-items: center;
+      vertical-align: middle;
+      margin: 0 2px;
+      line-height: 1;
+    }
+
+    .frac > span:first-child {
+      border-bottom: 2px solid currentColor;
+      padding: 0 4px 3px;
+      margin-bottom: 2px;
+    }
+
+    .frac > span:last-child {
+      padding: 0 4px;
+    }
+
+    .footer-note {
+      margin-top: 14px;
+      color: var(--muted);
+      font-size: 0.92rem;
+    }
+
+    .fade-up {
+      animation: fadeUp 0.8s ease both;
+    }
+
+    .delay-1 { animation-delay: 0.08s; }
+    .delay-2 { animation-delay: 0.16s; }
+    .delay-3 { animation-delay: 0.24s; }
+
+    @keyframes fadeUp {
+      from {
+        opacity: 0;
+        transform: translateY(18px);
+      }
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      html {
+        scroll-behavior: auto;
+      }
+
+      .fade-up {
+        animation: none;
+      }
+
+      .route-btn {
+        transition: none;
+      }
+
+      .network .route {
+        transition: none;
+      }
+    }
+
+    @media (max-width: 1080px) {
+      .hero,
+      .grid-two,
+      .visual-grid {
+        grid-template-columns: 1fr;
+      }
+
+      .hero {
+        padding: 42px 28px;
+      }
+    }
+
+    @media (max-width: 760px) {
+      .page {
+        padding-inline: 14px;
+        padding-bottom: 70px;
+      }
+
+      .hero,
+      .section {
+        border-radius: 28px;
+      }
+
+      .section {
+        padding: 24px 18px;
+      }
+
+      .hero-title {
+        font-size: clamp(2.6rem, 12vw, 4rem);
+      }
+
+      .probability-strip,
+      .check-grid,
+      .compare-grid {
+        grid-template-columns: 1fr;
+      }
+
+      .compare-grid {
+        gap: 8px;
+      }
+
+      .topbar {
+        margin-bottom: 14px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <main class="page">
+    <div class="topbar fade-up">
+      <div class="brand">
+        <span class="brand-dot"></span>
+        Visual-First Math Teaching Page
+      </div>
+      <nav class="nav-pills" aria-label="Section navigation">
+        <a href="#question-core">Question Core</a>
+        <a href="#question-visuals">Question Visuals</a>
+        <a href="#answer">Answer</a>
+      </nav>
+    </div>
+
+    <section class="hero fade-up delay-1">
+      <div class="hero-copy">
+        <span class="eyebrow">Use understanding before solving</span>
+        <h1 class="hero-title">Pathways, Splits, and Different Bins</h1>
+        <p class="hero-lead">
+          This page is built to spend most of its attention on the question itself:
+          what the words mean, how the pathway machine behaves, and what "different bins"
+          really asks us to compare. Only after that do we solve it.
+        </p>
+        <div class="hero-note">
+          <span class="tag">Question-first explanation</span>
+          <span class="tag">Mind map included</span>
+          <span class="tag">Answer grows from the visuals</span>
+        </div>
+      </div>
+
+      <article class="problem-card fade-up delay-2">
+        <h2>The Original Question</h2>
+        <p class="problem-statement">
+          A network of pathways lead from a single opening to three bins, labelled
+          <strong>A</strong>, <strong>B</strong>, <strong>C</strong>. If a ball is dropped
+          into the opening, it will follow a path and land in one of the bins. Every
+          time a path splits, it is equally likely for the ball to follow either of the
+          downward paths. Ellen drops two balls, one after the other, into the opening.
+          What is the probability that the two balls land in <strong>different bins</strong>?
+        </p>
+        <div class="translation">
+          <strong>Question translated into student language</strong>
+          <p>
+            Each ball is making a chain of left-right decisions. We do not care about the
+            exact route at the end, only which bin the ball finally reaches.
+          </p>
+        </div>
+        <div class="check-grid">
+          <div class="mini-card">
+            <strong>Random part</strong>
+            <p>At each split, the ball has a 50% chance of going each way.</p>
+          </div>
+          <div class="mini-card">
+            <strong>Important goal</strong>
+            <p>Compare the two final bins, not the full routes the balls took.</p>
+          </div>
+        </div>
+      </article>
+    </section>
+
+    <section class="section fade-up delay-2" id="question-core">
+      <div class="section-header">
+        <div>
+          <span class="eyebrow">Section 1</span>
+          <h2 class="section-title">Decode the question before touching the answer</h2>
+        </div>
+        <p class="section-lead">
+          The student should first see what the machine is doing, what stays fixed,
+          what is random, and what the question is really asking us to notice.
+        </p>
+      </div>
+
+      <div class="grid-two">
+        <div class="content-stack">
+          <article class="card">
+            <h3>What must the student notice?</h3>
+            <div class="check-grid">
+              <div class="mini-card">
+                <strong>1. One ball at a time</strong>
+                <p>The first ball finishes. Then a second ball starts fresh from the top.</p>
+              </div>
+              <div class="mini-card">
+                <strong>2. Every split is fair</strong>
+                <p>Whenever the path branches, the ball chooses left or right with equal probability.</p>
+              </div>
+              <div class="mini-card">
+                <strong>3. Different route lengths can happen</strong>
+                <p>Some balls reach a bin after fewer splits, while others travel longer.</p>
+              </div>
+              <div class="mini-card">
+                <strong>4. Only the bin matters at the end</strong>
+                <p>Two paths can be different but still land in the same final bin.</p>
+              </div>
+            </div>
+          </article>
+
+          <article class="card">
+            <h3>Turn the words into a thinking sequence</h3>
+            <div class="decoder">
+              <div class="decoder-step">
+                <div class="step-badge">1</div>
+                <div>
+                  <strong>Read the machine</strong>
+                  <p>See the network as a decision machine that keeps sending the ball downward.</p>
+                </div>
+              </div>
+              <div class="decoder-step">
+                <div class="step-badge">2</div>
+                <div>
+                  <strong>Track one ball first</strong>
+                  <p>Ask: how likely is one ball to land in A, B, or C?</p>
+                </div>
+              </div>
+              <div class="decoder-step">
+                <div class="step-badge">3</div>
+                <div>
+                  <strong>Then bring in the second ball</strong>
+                  <p>The second ball follows the same rules, independently of the first ball.</p>
+                </div>
+              </div>
+              <div class="decoder-step">
+                <div class="step-badge">4</div>
+                <div>
+                  <strong>Ask the comparison question</strong>
+                  <p>Do the two balls end in the same bin or in different bins?</p>
+                </div>
+              </div>
+            </div>
+          </article>
+        </div>
+
+        <article class="card">
+          <h3>Mind map: what the question is really about</h3>
+          <div class="mindmap-shell">
+            <svg viewBox="0 0 720 560" role="img" aria-label="Mind map for understanding the probability question">
+              <defs>
+                <linearGradient id="centerFill" x1="0%" x2="100%" y1="0%" y2="100%">
+                  <stop offset="0%" stop-color="#f3e5cf"></stop>
+                  <stop offset="100%" stop-color="#faefe3"></stop>
+                </linearGradient>
+              </defs>
+
+              <line x1="360" y1="278" x2="170" y2="118" stroke="#b8a996" stroke-width="3" />
+              <line x1="360" y1="278" x2="548" y2="120" stroke="#b8a996" stroke-width="3" />
+              <line x1="360" y1="278" x2="124" y2="288" stroke="#b8a996" stroke-width="3" />
+              <line x1="360" y1="278" x2="595" y2="292" stroke="#b8a996" stroke-width="3" />
+              <line x1="360" y1="278" x2="214" y2="456" stroke="#b8a996" stroke-width="3" />
+              <line x1="360" y1="278" x2="510" y2="456" stroke="#b8a996" stroke-width="3" />
+
+              <rect x="232" y="212" width="256" height="132" rx="34" fill="url(#centerFill)" stroke="#b08856" stroke-width="3" />
+              <text x="360" y="255" text-anchor="middle" font-family="Manrope, Arial, sans-serif" font-size="20" font-weight="800" fill="#283240">
+                What is the question
+              </text>
+              <text x="360" y="286" text-anchor="middle" font-family="Manrope, Arial, sans-serif" font-size="20" font-weight="800" fill="#283240">
+                really asking?
+              </text>
+              <text x="360" y="314" text-anchor="middle" font-family="Manrope, Arial, sans-serif" font-size="15" font-weight="600" fill="#56606b">
+                Understand the machine first.
+              </text>
+
+              <rect x="58" y="58" width="224" height="104" rx="26" fill="#e6f3f2" stroke="#1f6d6a" stroke-width="2.5" />
+              <text x="170" y="96" text-anchor="middle" font-family="Manrope, Arial, sans-serif" font-size="17" font-weight="800" fill="#1f4f4d">
+                Each split is 50-50
+              </text>
+              <text x="170" y="122" text-anchor="middle" font-family="Manrope, Arial, sans-serif" font-size="14" font-weight="600" fill="#315c61">
+                Left or right are equally likely
+              </text>
+
+              <rect x="438" y="58" width="224" height="108" rx="26" fill="#fff0df" stroke="#af6d2c" stroke-width="2.5" />
+              <text x="550" y="96" text-anchor="middle" font-family="Manrope, Arial, sans-serif" font-size="17" font-weight="800" fill="#8b541d">
+                One ball chooses a route
+              </text>
+              <text x="550" y="122" text-anchor="middle" font-family="Manrope, Arial, sans-serif" font-size="14" font-weight="600" fill="#865d36">
+                It keeps moving until it reaches a bin
+              </text>
+
+              <rect x="36" y="230" width="176" height="116" rx="26" fill="#f7e8f0" stroke="#86425e" stroke-width="2.5" />
+              <text x="124" y="272" text-anchor="middle" font-family="Manrope, Arial, sans-serif" font-size="17" font-weight="800" fill="#6f3550">
+                Final bin matters
+              </text>
+              <text x="124" y="300" text-anchor="middle" font-family="Manrope, Arial, sans-serif" font-size="14" font-weight="600" fill="#7a4a60">
+                A, B, or C
+              </text>
+              <text x="124" y="322" text-anchor="middle" font-family="Manrope, Arial, sans-serif" font-size="14" font-weight="600" fill="#7a4a60">
+                not every tiny turn
+              </text>
+
+              <rect x="510" y="234" width="180" height="112" rx="26" fill="#edf3f8" stroke="#35516d" stroke-width="2.5" />
+              <text x="600" y="274" text-anchor="middle" font-family="Manrope, Arial, sans-serif" font-size="17" font-weight="800" fill="#314a62">
+                Then a second ball
+              </text>
+              <text x="600" y="300" text-anchor="middle" font-family="Manrope, Arial, sans-serif" font-size="14" font-weight="600" fill="#4c657c">
+                starts over from the top
+              </text>
+              <text x="600" y="322" text-anchor="middle" font-family="Manrope, Arial, sans-serif" font-size="14" font-weight="600" fill="#4c657c">
+                with the same rules
+              </text>
+
+              <rect x="96" y="400" width="236" height="116" rx="26" fill="#eef8f0" stroke="#2d7c4d" stroke-width="2.5" />
+              <text x="214" y="442" text-anchor="middle" font-family="Manrope, Arial, sans-serif" font-size="17" font-weight="800" fill="#2a6941">
+                We compare the outcomes
+              </text>
+              <text x="214" y="468" text-anchor="middle" font-family="Manrope, Arial, sans-serif" font-size="14" font-weight="600" fill="#4d6b58">
+                same bin?
+              </text>
+              <text x="214" y="490" text-anchor="middle" font-family="Manrope, Arial, sans-serif" font-size="14" font-weight="600" fill="#4d6b58">
+                or different bins?
+              </text>
+
+              <rect x="392" y="402" width="236" height="112" rx="26" fill="#fff8e7" stroke="#c48a34" stroke-width="2.5" />
+              <text x="510" y="442" text-anchor="middle" font-family="Manrope, Arial, sans-serif" font-size="17" font-weight="800" fill="#8c611f">
+                Best plan
+              </text>
+              <text x="510" y="468" text-anchor="middle" font-family="Manrope, Arial, sans-serif" font-size="14" font-weight="600" fill="#8a6a3a">
+                find P(A), P(B), P(C)
+              </text>
+              <text x="510" y="490" text-anchor="middle" font-family="Manrope, Arial, sans-serif" font-size="14" font-weight="600" fill="#8a6a3a">
+                then compare two balls
+              </text>
+            </svg>
+          </div>
+        </article>
+      </div>
+    </section>
+
+    <section class="section fade-up delay-3" id="question-visuals">
+      <div class="section-header">
+        <div>
+          <span class="eyebrow">Section 2</span>
+          <h2 class="section-title">See the pathway machine and the comparison idea</h2>
+        </div>
+        <p class="section-lead">
+          This is still the understanding phase. The student should be able to say,
+          "I know what happens to one ball, and I know what must be compared for two balls."
+        </p>
+      </div>
+
+      <div class="visual-grid">
+        <article class="card network-shell">
+          <h3>Pathway map of the network</h3>
+          <svg class="network" id="network" data-focus="all" viewBox="0 0 520 430" role="img" aria-label="Pathway network leading to bins A, B, and C">
+            <path class="base" d="M260 48 L160 132" />
+            <path class="base" d="M260 48 L360 132" />
+            <path class="base" d="M160 132 L102 224" />
+            <path class="base" d="M160 132 L250 224" />
+            <path class="base" d="M360 132 L250 224" />
+            <path class="base" d="M360 132 L392 290" />
+            <path class="base" d="M102 224 L58 338" />
+            <path class="base" d="M102 224 L250 338" />
+            <path class="base" d="M250 224 L250 338" />
+            <path class="base" d="M250 224 L392 290" />
+            <path class="base" d="M392 290 L250 338" />
+            <path class="base" d="M392 290 L462 338" />
+
+            <path class="route family-a" d="M260 48 L160 132 L102 224 L58 338" />
+
+            <path class="route family-b" d="M260 48 L160 132 L102 224 L250 338" />
+            <path class="route family-b" d="M260 48 L160 132 L250 224 L250 338" />
+            <path class="route family-b" d="M260 48 L160 132 L250 224 L392 290 L250 338" />
+            <path class="route family-b" d="M260 48 L360 132 L250 224 L250 338" />
+            <path class="route family-b" d="M260 48 L360 132 L250 224 L392 290 L250 338" />
+            <path class="route family-b" d="M260 48 L360 132 L392 290 L250 338" />
+
+            <path class="route family-c" d="M260 48 L360 132 L392 290 L462 338" />
+            <path class="route family-c" d="M260 48 L360 132 L250 224 L392 290 L462 338" />
+            <path class="route family-c" d="M260 48 L160 132 L250 224 L392 290 L462 338" />
+
+            <circle class="node" cx="260" cy="48" r="19" />
+            <circle class="node" cx="160" cy="132" r="19" />
+            <circle class="node" cx="360" cy="132" r="19" />
+            <circle class="node" cx="102" cy="224" r="19" />
+            <circle class="node" cx="250" cy="224" r="19" />
+            <circle class="node" cx="392" cy="290" r="19" />
+
+            <text class="split-label" x="260" y="18" text-anchor="middle">Opening</text>
+            <text class="node-label" x="260" y="54" text-anchor="middle">1</text>
+            <text class="node-label" x="160" y="138" text-anchor="middle">2</text>
+            <text class="node-label" x="360" y="138" text-anchor="middle">4</text>
+            <text class="node-label" x="102" y="230" text-anchor="middle">3</text>
+            <text class="node-label" x="250" y="230" text-anchor="middle">5</text>
+            <text class="node-label" x="392" y="296" text-anchor="middle">6</text>
+
+            <rect class="bin" x="20" y="338" width="76" height="52" />
+            <rect class="bin" x="212" y="338" width="76" height="52" />
+            <rect class="bin" x="424" y="338" width="76" height="52" />
+
+            <text class="bin-label" x="58" y="371" text-anchor="middle">A</text>
+            <text class="bin-label" x="250" y="371" text-anchor="middle">B</text>
+            <text class="bin-label" x="462" y="371" text-anchor="middle">C</text>
+          </svg>
+
+          <div class="network-caption">
+            <div class="button-row" role="group" aria-label="Highlight route families">
+              <button class="route-btn active" type="button" data-focus="all">Show all route families</button>
+              <button class="route-btn" type="button" data-focus="a">Routes to A</button>
+              <button class="route-btn" type="button" data-focus="b">Routes to B</button>
+              <button class="route-btn" type="button" data-focus="c">Routes to C</button>
+            </div>
+            <div class="route-note" id="route-note">
+              <strong>What should the student see here?</strong>
+              <p>
+                There are not equally many routes to each bin. Even though every split is fair,
+                the whole machine is not balanced evenly between A, B, and C. Bin B collects the
+                most route families, so it will turn out to be the most likely.
+              </p>
+            </div>
+          </div>
+        </article>
+
+        <div class="highlight-grid">
+          <article class="highlight-card">
+            <h4>Reading one ball correctly</h4>
+            <p>
+              A ball does not choose a bin directly. It only chooses at each split.
+              The final bin is the result of a whole chain of choices.
+            </p>
+            <div class="pill-list">
+              <span class="pill">fair split</span>
+              <span class="pill">downward motion</span>
+              <span class="pill">some routes are longer</span>
+            </div>
+          </article>
+
+          <article class="highlight-card">
+            <h4>Why B should feel important before solving</h4>
+            <p>
+              Look at the map: several different branches can still funnel back into B.
+              This means B is a "collector bin" in the network.
+            </p>
+            <p>
+              That is a visual clue that the probabilities of A, B, and C are not equal.
+            </p>
+          </article>
+
+          <article class="highlight-card">
+            <h4>What changes when the second ball is dropped?</h4>
+            <p>
+              Nothing about the machine changes. The second ball just repeats the same experiment.
+              That is why we can use the one-ball probabilities twice.
+            </p>
+          </article>
+        </div>
+      </div>
+
+      <div class="grid-two" style="margin-top: 22px;">
+        <article class="card">
+          <h3>What does "different bins" really mean?</h3>
+          <p>
+            Imagine the first ball gives the row and the second ball gives the column.
+            The red diagonal means "same bin". The green boxes mean "different bins".
+          </p>
+          <div class="compare-grid" aria-label="Same-bin and different-bin comparison grid">
+            <div class="compare-cell same">A, A</div>
+            <div class="compare-cell diff">A, B</div>
+            <div class="compare-cell diff">A, C</div>
+            <div class="compare-cell diff">B, A</div>
+            <div class="compare-cell same">B, B</div>
+            <div class="compare-cell diff">B, C</div>
+            <div class="compare-cell diff">C, A</div>
+            <div class="compare-cell diff">C, B</div>
+            <div class="compare-cell same">C, C</div>
+          </div>
+          <div class="compare-legend">
+            <span class="legend-key"><span class="legend-dot same"></span> Same bin</span>
+            <span class="legend-key"><span class="legend-dot diff"></span> Different bins</span>
+          </div>
+        </article>
+
+        <article class="card">
+          <h3>Best solving idea before calculation</h3>
+          <p>
+            Once the student understands the grid, there are two natural ways to solve:
+          </p>
+          <div class="decoder">
+            <div class="decoder-step">
+              <div class="step-badge">A</div>
+              <div>
+                <strong>Direct way</strong>
+                <p>Find all different-bin outcomes and add them.</p>
+              </div>
+            </div>
+            <div class="decoder-step">
+              <div class="step-badge">B</div>
+              <div>
+                <strong>Smarter way</strong>
+                <p>Find the probability of the same bin first, then subtract from 1.</p>
+              </div>
+            </div>
+          </div>
+          <p style="margin-top: 14px; color: var(--muted);">
+            The second way is cleaner because there are only three same-bin cases:
+            A with A, B with B, and C with C.
+          </p>
+        </article>
+      </div>
+    </section>
+
+    <section class="section fade-up delay-3" id="answer">
+      <div class="section-header">
+        <div>
+          <span class="eyebrow">Section 3</span>
+          <h2 class="section-title">Now the answer sinks in because the question is clear</h2>
+        </div>
+        <p class="section-lead">
+          We keep this part shorter. The heavy work was understanding the machine;
+          now the calculation can feel natural instead of mysterious.
+        </p>
+      </div>
+
+      <div class="solution-shell">
+        <div class="probability-strip">
+          <article class="prob-card">
+            <strong><span class="dot a"></span> Bin A</strong>
+            <p>
+              There is only one route family to A: 1 -> 2 -> 3 -> A.
+              So <strong>P(A) = <span class="frac"><span>1</span><span>8</span></span></strong>.
+            </p>
+            <div class="bar a"><span></span></div>
+          </article>
+
+          <article class="prob-card">
+            <strong><span class="dot b"></span> Bin B</strong>
+            <p>
+              B collects many route families, so it becomes the largest probability:
+              <strong>P(B) = <span class="frac"><span>5</span><span>8</span></span></strong>.
+            </p>
+            <div class="bar b"><span></span></div>
+          </article>
+
+          <article class="prob-card">
+            <strong><span class="dot c"></span> Bin C</strong>
+            <p>
+              Three route families lead to C, so
+              <strong>P(C) = <span class="frac"><span>1</span><span>4</span></span></strong>.
+            </p>
+            <div class="bar c"><span></span></div>
+          </article>
+        </div>
+
+        <article class="equation-card">
+          <h3>Use the "same bin" shortcut</h3>
+          <p>
+            Same-bin cases are <strong>A,A</strong>, <strong>B,B</strong>, and <strong>C,C</strong>.
+            Since the two balls are independent:
+          </p>
+          <p class="math-line">
+            P(same) = P(A)^2 + P(B)^2 + P(C)^2
+          </p>
+          <p class="math-line">
+            = (<span class="frac"><span>1</span><span>8</span></span>)^2
+            + (<span class="frac"><span>5</span><span>8</span></span>)^2
+            + (<span class="frac"><span>1</span><span>4</span></span>)^2
+          </p>
+          <p class="math-line">
+            = <span class="frac"><span>1</span><span>64</span></span>
+            + <span class="frac"><span>25</span><span>64</span></span>
+            + <span class="frac"><span>4</span><span>64</span></span>
+            = <span class="frac"><span>30</span><span>64</span></span>
+            = <span class="frac"><span>15</span><span>32</span></span>
+          </p>
+          <p class="math-line">
+            P(different) = 1 - <span class="frac"><span>15</span><span>32</span></span>
+            = <span class="frac"><span>17</span><span>32</span></span>
+          </p>
+
+          <div class="final-answer">
+            <div class="answer-badge">A</div>
+            <div class="answer-copy">
+              <strong>Final answer: <span class="frac"><span>17</span><span>32</span></span></strong>
+              <p>The correct choice is <strong>(A)</strong>.</p>
+            </div>
+          </div>
+        </article>
+      </div>
+
+      <p class="footer-note">
+        Teaching note: if the student first understands why B is visually the "collector bin,"
+        the numerical answer feels much more reasonable and much less like a trick.
+      </p>
+    </section>
+  </main>
+
+  <script>
+    const network = document.getElementById("network");
+    const routeNote = document.getElementById("route-note");
+    const buttons = document.querySelectorAll(".route-btn");
+
+    const notes = {
+      all: {
+        title: "What should the student see here?",
+        body: "There are not equally many routes to each bin. Even though every split is fair, the whole machine is not balanced evenly between A, B, and C. Bin B collects the most route families, so it will turn out to be the most likely."
+      },
+      a: {
+        title: "Routes to A",
+        body: "Only one route family reaches A: 1 -> 2 -> 3 -> A. That is why A ends up with the smallest probability."
+      },
+      b: {
+        title: "Routes to B",
+        body: "B is the collector bin. Many different route families fall into B, which is the visual reason P(B) becomes the largest."
+      },
+      c: {
+        title: "Routes to C",
+        body: "Three route families reach C. It is more likely than A, but still much less likely than B."
+      }
+    };
+
+    buttons.forEach((button) => {
+      button.addEventListener("click", () => {
+        const focus = button.getAttribute("data-focus");
+        network.setAttribute("data-focus", focus);
+
+        buttons.forEach((item) => item.classList.remove("active"));
+        button.classList.add("active");
+
+        routeNote.innerHTML =
+          "<strong>" + notes[focus].title + "</strong><p>" + notes[focus].body + "</p>";
+      });
+    });
+  </script>
+</body>
+</html>

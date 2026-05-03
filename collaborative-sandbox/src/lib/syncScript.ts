@@ -1,5 +1,5 @@
 export const injectedSyncScript = `
-<script>
+<script id="mathslive-sync-script">
   try {
     Object.defineProperty(window, 'fetch', {
       value: window.fetch,
@@ -16,6 +16,71 @@ export const injectedSyncScript = `
     function exitRemote() { remoteDepth = Math.max(0, remoteDepth - 1); }
 
     var interactionBlocked = false;
+    var presenterMode = false;
+    var lockedWindowX = 0;
+    var lockedWindowY = 0;
+
+    function updateLockedWindowPos() {
+      lockedWindowX = window.scrollX || 0;
+      lockedWindowY = window.scrollY || 0;
+    }
+
+    function blockScrollEvent(e) {
+      if (!interactionBlocked || isRemote()) return false;
+      try { e.preventDefault(); } catch(ignore) {}
+      try { e.stopPropagation(); } catch(ignore) {}
+      return true;
+    }
+
+    // Strict scroll blocking for view-only mode
+    function enforceScrollLock() {
+      if (!interactionBlocked || isRemote()) return;
+      var currX = window.scrollX || 0;
+      var currY = window.scrollY || 0;
+      if (currX !== lockedWindowX || currY !== lockedWindowY) {
+        enterRemote();
+        window.scrollTo(lockedWindowX, lockedWindowY);
+        setTimeout(function() { exitRemote(); }, 0);
+      }
+    }
+
+    // Show a visual indicator when following clicks from another user
+    function showClickIndicator(x, y) {
+      try {
+        var indicator = document.createElement('div');
+        indicator.style.cssText = 'position:fixed;left:' + x + 'px;top:' + y + 'px;width:20px;height:20px;margin:-10px 0 0 -10px;border-radius:50%;background:rgba(239,68,68,0.6);border:3px solid #EF4444;z-index:999999;pointer-events:none;animation:clickPulse 1s ease-out forwards;';
+        document.body.appendChild(indicator);
+
+        // Add animation keyframes if not already present
+        if (!document.getElementById('clickPulseStyle')) {
+          var style = document.createElement('style');
+          style.id = 'clickPulseStyle';
+          style.textContent = '@keyframes clickPulse{0%{transform:scale(1);opacity:1}50%{transform:scale(2)}100%{transform:scale(3);opacity:0}}';
+          document.head.appendChild(style);
+        }
+
+        setTimeout(function() {
+          if (indicator.parentNode) indicator.parentNode.removeChild(indicator);
+        }, 1000);
+      } catch(ignore) {}
+    }
+
+    function isScrollKey(e) {
+      var k = e.key;
+      return k === 'ArrowUp' || k === 'ArrowDown' || k === 'ArrowLeft' || k === 'ArrowRight' ||
+             k === 'PageUp' || k === 'PageDown' || k === 'Home' || k === 'End' ||
+             k === ' ' || k === 'Spacebar' || k === 'Space';
+    }
+
+    function isEditableTarget(t) {
+      if (!t) return false;
+      try {
+        var tag = (t.tagName || '').toLowerCase();
+        if (tag === 'input' || tag === 'textarea' || tag === 'select') return true;
+        if (t.isContentEditable) return true;
+      } catch(ignore) {}
+      return false;
+    }
 
     // AUTONOMOUS: [ORDER-3] CSS.escape polyfill for older browsers
     if (typeof CSS === 'undefined' || !CSS.escape) {
@@ -141,7 +206,31 @@ export const injectedSyncScript = `
           window.parent.postMessage({ type: 'SYNC_CURSOR', x: touch.clientX / window.innerWidth, y: touch.clientY / window.innerHeight }, '*');
         }
       }
-    }, { passive: true });
+      // In view-only mode, block touch scroll/pan gestures (must be passive:false to allow preventDefault)
+      if (interactionBlocked && !isRemote()) {
+        try { e.preventDefault(); } catch(ignore) {}
+        try { e.stopPropagation(); } catch(ignore) {}
+      }
+    }, { passive: false });
+
+    // Strict view-only lock: prevent student-originated scroll inputs via wheel
+    document.addEventListener('wheel', function(e) {
+      if (blockScrollEvent(e)) {
+        // Also immediately snap back to locked position for stronger enforcement
+        enforceScrollLock();
+      }
+    }, { capture: true, passive: false });
+
+    // Block keyboard scroll keys in view-only mode
+    document.addEventListener('keydown', function(e) {
+      if (!interactionBlocked || isRemote()) return;
+      if (!isScrollKey(e)) return;
+      if (isEditableTarget(e.target)) return;
+      try { e.preventDefault(); } catch(ignore) {}
+      try { e.stopPropagation(); } catch(ignore) {}
+      // Enforce scroll lock immediately
+      enforceScrollLock();
+    }, true);
 
     document.addEventListener('touchstart', function(e) {
       if (isRemote() || interactionBlocked) return;
@@ -161,15 +250,91 @@ export const injectedSyncScript = `
     var scrollSyncEnabled = true;
     var lastScroll = 0;
 
+    // ── Zoom sync ──
+    var currentZoom = 1;
+    function _applyZoom(z) {
+      currentZoom = z;
+      var root = document.documentElement;
+      // Prefer CSS zoom (fast, preserves layout; widely supported in Chromium, Safari, Edge)
+      try {
+        root.style.zoom = String(z);
+      } catch(e) {}
+      // Firefox doesn't support CSS zoom — use transform scale as fallback
+      if (!('zoom' in root.style)) {
+        root.style.transformOrigin = '0 0';
+        root.style.transform = z === 1 ? '' : 'scale(' + z + ')';
+        root.style.width = z === 1 ? '' : (100 / z) + '%';
+      }
+    }
+
+    // Find a meaningful anchor element near the top of the visible area
+    var _lastAnchorTime = 0;
+    var _lastAnchorResult = null;
+    var _lastAnchorContainer = null;
+    function _findAnchor(scrollContainer) {
+      var now = Date.now();
+      // Cache anchor for 120ms to avoid expensive DOM queries on every scroll tick
+      if (now - _lastAnchorTime < 120 && _lastAnchorContainer === scrollContainer && _lastAnchorResult) {
+        // Update offset for cached anchor (position may have changed slightly)
+        try {
+          var cachedEl = document.querySelector(_lastAnchorResult.anchor);
+          if (cachedEl) {
+            var cr = cachedEl.getBoundingClientRect();
+            _lastAnchorResult.anchorOffsetPx = !scrollContainer ? -cr.top : (scrollContainer.getBoundingClientRect().top - cr.top);
+            return _lastAnchorResult;
+          }
+        } catch(e) {}
+      }
+      _lastAnchorTime = now;
+      _lastAnchorContainer = scrollContainer;
+
+      var isDoc = !scrollContainer;
+      var vpHeight = isDoc ? window.innerHeight : scrollContainer.clientHeight;
+      var scanY = vpHeight * 0.15; // 15% into the visible viewport
+      // Check elements with semantic meaning — prefer quiz/step markers, then headings, then containers
+      var root = isDoc ? document : scrollContainer;
+      var candidates = root.querySelectorAll(
+        '[data-step], [data-question], .question, .slide, .card, .panel, .problem, section, article, h1, h2, h3, h4, h5, h6, li, tr'
+      );
+      // If too few semantic elements, also check divs/paragraphs
+      if (candidates.length < 3) {
+        candidates = root.querySelectorAll(
+          '[data-step], [data-question], .question, .slide, .card, .panel, .problem, section, article, h1, h2, h3, h4, h5, h6, p, li, tr, div'
+        );
+      }
+      var best = null;
+      var bestDist = Infinity;
+      var limit = Math.min(candidates.length, 500); // Cap for performance
+      for (var i = 0; i < limit; i++) {
+        var c = candidates[i];
+        var rect = c.getBoundingClientRect();
+        // Use viewport-relative top (no need to add scrollTop)
+        var dist = Math.abs(rect.top - scanY);
+        if (dist < bestDist) {
+          bestDist = dist;
+          best = c;
+        }
+      }
+      if (best && bestDist < vpHeight) {
+        var p = getElementPath(best);
+        if (p) {
+          var bestRect = best.getBoundingClientRect();
+          _lastAnchorResult = { anchor: p, anchorOffsetPx: isDoc ? -bestRect.top : (scrollContainer.getBoundingClientRect().top - bestRect.top) };
+          return _lastAnchorResult;
+        }
+      }
+      _lastAnchorResult = null;
+      return null;
+    }
+
     function sendDocScroll() {
-      if (isRemote() || !scrollSyncEnabled || interactionBlocked) return;
+      if (isRemote() || !scrollSyncEnabled || (interactionBlocked && !presenterMode)) return;
       var now = Date.now();
       if (now - lastScroll < 30) return;
       lastScroll = now;
       var maxW = Math.max(0, document.documentElement.scrollWidth - window.innerWidth);
       var maxH = Math.max(0, document.documentElement.scrollHeight - window.innerHeight);
-      // AUTONOMOUS: [ORDER-3] Guard against zero/negative max to avoid NaN
-      window.parent.postMessage({
+      var msg = {
         type: 'SYNC_SCROLL',
         scrollX: maxW > 0 ? window.scrollX / maxW : 0,
         scrollY: maxH > 0 ? window.scrollY / maxH : 0,
@@ -177,11 +342,15 @@ export const injectedSyncScript = `
         absScrollY: window.scrollY,
         maxScrollX: maxW,
         maxScrollY: maxH
-      }, '*');
+      };
+      // Add anchor for cross-resolution sync
+      var a = _findAnchor(null);
+      if (a) { msg.anchor = a.anchor; msg.anchorOffsetPx = a.anchorOffsetPx; }
+      window.parent.postMessage(msg, '*');
     }
 
     function sendElementScroll(e) {
-      if (isRemote() || !scrollSyncEnabled || interactionBlocked) return;
+      if (isRemote() || !scrollSyncEnabled || (interactionBlocked && !presenterMode)) return;
       var now = Date.now();
       if (now - lastScroll < 30) return;
       lastScroll = now;
@@ -192,16 +361,28 @@ export const injectedSyncScript = `
       var maxTop = Math.max(0, el.scrollHeight - el.clientHeight);
       var maxLeft = Math.max(0, el.scrollWidth - el.clientWidth);
       if (maxTop > 0 || maxLeft > 0) {
-        window.parent.postMessage({
+        var msg = {
           type: 'SYNC_SCROLL', path: path,
           scrollTop: maxTop > 0 ? el.scrollTop / maxTop : 0,
           scrollLeft: maxLeft > 0 ? el.scrollLeft / maxLeft : 0,
           absScrollTop: el.scrollTop, absScrollLeft: el.scrollLeft
-        }, '*');
+        };
+        // Add anchor for cross-resolution sync
+        var a = _findAnchor(el);
+        if (a) { msg.anchor = a.anchor; msg.anchorOffsetPx = a.anchorOffsetPx; }
+        window.parent.postMessage(msg, '*');
       }
     }
 
-    window.addEventListener('scroll', sendDocScroll, { passive: true });
+    // Send scroll sync updates (only when not blocked or during remote updates)
+    window.addEventListener('scroll', function() {
+      if (interactionBlocked && !presenterMode && !isRemote()) {
+        // In view-only mode, revert any student scroll attempts immediately
+        enforceScrollLock();
+        return;
+      }
+      sendDocScroll();
+    }, { passive: true });
 
     // AUTONOMOUS: [ORDER-4] Debounce DOM scanning to prevent perf issues (was 150ms, now 800ms)
     var _scrollTag = '__syncScroll';
@@ -347,25 +528,101 @@ export const injectedSyncScript = `
         if (!scrollSyncEnabled) return;
         enterRemote();
         try {
-          if (data.path) {
-            var scrollEl = findElement(data.path);
-            if (scrollEl) {
-              var maxT = Math.max(0, scrollEl.scrollHeight - scrollEl.clientHeight);
-              var maxL = Math.max(0, scrollEl.scrollWidth - scrollEl.clientWidth);
-              scrollEl.scrollTo({ left: (data.scrollLeft || 0) * maxL, top: (data.scrollTop || 0) * maxT, behavior: 'smooth' });
+          // Try anchor-based sync first (works across different screen sizes)
+          var anchorUsed = false;
+          if (data.anchor) {
+            var anchorEl = findElement(data.anchor);
+            if (anchorEl) {
+              var anchorRect = anchorEl.getBoundingClientRect();
+              if (data.path) {
+                // Element-level: scroll container so anchor is at the right offset
+                var scrollEl = findElement(data.path);
+                if (scrollEl) {
+                  var containerRect = scrollEl.getBoundingClientRect();
+                  var targetScrollTop = scrollEl.scrollTop + anchorRect.top - containerRect.top + (data.anchorOffsetPx || 0);
+                  scrollEl.scrollTo({ top: Math.max(0, targetScrollTop), left: scrollEl.scrollLeft, behavior: 'smooth' });
+                  anchorUsed = true;
+                }
+              } else {
+                // Document-level: scroll so anchor is at the right offset from viewport top
+                var targetTop = window.scrollY + anchorRect.top + (data.anchorOffsetPx || 0);
+                window.scrollTo({ top: Math.max(0, targetTop), behavior: 'smooth' });
+                anchorUsed = true;
+              }
             }
-          } else {
-            var maxX = Math.max(0, document.documentElement.scrollWidth - window.innerWidth);
-            var maxY = Math.max(0, document.documentElement.scrollHeight - window.innerHeight);
-            window.scrollTo({ left: data.scrollX * maxX, top: data.scrollY * maxY, behavior: 'smooth' });
+          }
+          // Fallback to ratio-based sync if anchor not available
+          if (!anchorUsed) {
+            if (data.path) {
+              var scrollEl = findElement(data.path);
+              if (scrollEl) {
+                var maxT = Math.max(0, scrollEl.scrollHeight - scrollEl.clientHeight);
+                var maxL = Math.max(0, scrollEl.scrollWidth - scrollEl.clientWidth);
+                scrollEl.scrollTo({ left: (data.scrollLeft || 0) * maxL, top: (data.scrollTop || 0) * maxT, behavior: 'smooth' });
+              }
+            } else {
+              var maxX = Math.max(0, document.documentElement.scrollWidth - window.innerWidth);
+              var maxY = Math.max(0, document.documentElement.scrollHeight - window.innerHeight);
+              window.scrollTo({ left: data.scrollX * maxX, top: data.scrollY * maxY, behavior: 'smooth' });
+            }
           }
         } catch(ignore) {}
         // AUTONOMOUS: [ORDER-1] Use delayed exit for smooth scroll animation duration
-        setTimeout(function() { exitRemote(); }, 600);
+        setTimeout(function() {
+          updateLockedWindowPos();
+          exitRemote();
+        }, 600);
+      } else if (data.type === 'FOLLOW_CLICK') {
+        // Scroll to the clicked position (used when following other user's clicks)
+        try {
+          enterRemote();
+          var targetX = data.x * Math.max(0, document.documentElement.scrollWidth - window.innerWidth);
+          var targetY = data.y * Math.max(0, document.documentElement.scrollHeight - window.innerHeight);
+          window.scrollTo({ left: targetX, top: targetY, behavior: 'smooth' });
+          // Show a visual indicator at the click position
+          showClickIndicator(data.x * window.innerWidth, data.y * window.innerHeight);
+          setTimeout(function() { exitRemote(); }, 600);
+        } catch(ignore) {}
+      } else if (data.type === 'SET_ZOOM') {
+        // Teacher-initiated zoom: apply + broadcast via SYNC_ZOOM
+        var z = Math.max(0.5, Math.min(3, Number(data.zoom) || 1));
+        _applyZoom(z);
+        window.parent.postMessage({ type: 'SYNC_ZOOM', zoom: z }, '*');
+      } else if (data.type === 'REMOTE_ZOOM') {
+        // Student receives zoom from teacher — apply silently (no echo)
+        var z2 = Math.max(0.5, Math.min(3, Number(data.zoom) || 1));
+        enterRemote();
+        try { _applyZoom(z2); } catch(e) {}
+        setTimeout(function() { exitRemote(); }, 200);
       } else if (data.type === 'SET_SCROLL_SYNC') {
         scrollSyncEnabled = !!data.enabled;
       } else if (data.type === 'SET_INTERACTION_MODE') {
         interactionBlocked = !data.allowed;
+        // Capture the current position as lock-point when entering view-only mode.
+        if (interactionBlocked) updateLockedWindowPos();
+      } else if (data.type === 'SET_PRESENTER_MODE') {
+        presenterMode = !!data.enabled;
+        if (presenterMode) interactionBlocked = false;
+      } else if (data.type === 'EMIT_CURRENT_SCROLL') {
+        // Bypass throttle/presenter guards and emit the current document scroll
+        // so a freshly opened mirror/student can catch up immediately.
+        try {
+          var maxW = Math.max(0, document.documentElement.scrollWidth - window.innerWidth);
+          var maxH = Math.max(0, document.documentElement.scrollHeight - window.innerHeight);
+          var msg = {
+            type: 'SYNC_SCROLL',
+            scrollX: maxW > 0 ? window.scrollX / maxW : 0,
+            scrollY: maxH > 0 ? window.scrollY / maxH : 0,
+            absScrollX: window.scrollX,
+            absScrollY: window.scrollY,
+            maxScrollX: maxW,
+            maxScrollY: maxH,
+            mirrorOnly: !!data.mirrorOnly
+          };
+          var a = _findAnchor(null);
+          if (a) { msg.anchor = a.anchor; msg.anchorOffsetPx = a.anchorOffsetPx; }
+          window.parent.postMessage(msg, '*');
+        } catch(ignore) {}
       } else if (data.type === 'RESET_VIEW') {
         enterRemote();
         try { window.scrollTo({ top: 0, left: 0, behavior: 'smooth' }); } catch(ignore) {}
@@ -436,9 +693,15 @@ export const injectedSyncScript = `
             }
           } catch(ignore) {}
         });
+        var htmlClone = document.documentElement.cloneNode(true);
+        try {
+          var syncScripts = htmlClone.querySelectorAll('#mathslive-sync-script');
+          syncScripts.forEach(function(script) { script.parentNode && script.parentNode.removeChild(script); });
+        } catch(ignore) {}
         window.parent.postMessage({
           type: 'SYNC_PROVIDE_HTML',
-          html: '<!DOCTYPE html>\\n<html>' + document.documentElement.innerHTML + '</html>',
+          requestId: data.requestId,
+          html: '<!DOCTYPE html>\\n' + htmlClone.outerHTML,
           scrollX: window.scrollX,
           scrollY: window.scrollY
         }, '*');
